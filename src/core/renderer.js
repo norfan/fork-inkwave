@@ -79,6 +79,24 @@ function isAppleGPU(gl) {
   return /Apple/i.test(name) && !/Intel|AMD|Radeon|NVIDIA/i.test(name);
 }
 
+// Split-screen quadrants in CSS pixels (top-left origin), tiled exactly:
+// 2 → side by side · 3 → one full-height left, two stacked right · 4 (and the 2×2 fallback) → quadrants.
+function splitRects(n, w, h) {
+  const hw = w / 2, hh = h / 2;
+  if (n === 2) return [{ x: 0, y: 0, w: hw, h }, { x: hw, y: 0, w: w - hw, h }];
+  if (n === 3) return [
+    { x: 0, y: 0, w: hw, h },
+    { x: hw, y: 0, w: w - hw, h: hh },
+    { x: hw, y: hh, w: w - hw, h: h - hh },
+  ];
+  return [
+    { x: 0, y: 0, w: hw, h: hh },
+    { x: hw, y: 0, w: w - hw, h: hh },
+    { x: 0, y: hh, w: hw, h: h - hh },
+    { x: hw, y: hh, w: w - hw, h: h - hh },
+  ];
+}
+
 export class Renderer {
   constructor(container, settings) {
     const r = (this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', stencil: false }));
@@ -182,10 +200,66 @@ export class Renderer {
     s = Math.max(this.dynFloor(), Math.min(1, s));
     if (Math.abs(s - this.dynScale) < 0.01) return;
     this.dynScale = s;
+    if (this.local4P) { this.setLocal4P(this.local4P); return; }
     const pr = Math.min(window.devicePixelRatio || 1, this.q.pixelRatio) * s;
     this.renderer.setPixelRatio(pr);
     this.composer.setPixelRatio(pr);
     this.composer.setSize(this._w, this._h);
+  }
+
+  // Local split-screen (1–4 players): each player's camera renders into its own quadrant through a lightweight
+  // composer (RenderPass → Grade → Output). GTAO / bloom / SMAA / screen-FX are skipped in split-screen — four full
+  // chains would cost more than the game's geometry does. Pass the per-player cameras to render4P each frame.
+  setLocal4P(n) {
+    n = Math.max(0, Math.min(4, n | 0));
+    if (this.quads) { for (const q of this.quads) { q.composer.renderTarget1.dispose(); q.composer.renderTarget2.dispose(); } this.quads = null; }
+    this.local4P = n;
+    if (!n) return;
+    const r = this.renderer, pr = Math.min(window.devicePixelRatio || 1, this.q.pixelRatio) * (this.dynScale || 1);
+    const w = window.innerWidth, h = window.innerHeight;
+    const rects = splitRects(n, w, h);
+    this.quads = rects.map((rc) => {
+      const rt = new THREE.WebGLRenderTarget(Math.max(2, Math.round(rc.w * pr)), Math.max(2, Math.round(rc.h * pr)), { type: THREE.HalfFloatType, samples: this.appleGPU ? 0 : this.samples || 0 });
+      const comp = new EffectComposer(r, rt);
+      comp.setPixelRatio(pr); comp.setSize(rc.w, rc.h);
+      const pass = new RenderPass(this.scene, this.camera);
+      comp.addPass(pass);
+      const grade = new ShaderPass(GradeShader);
+      grade.uniforms.uAspect.value = rc.w / rc.h;
+      comp.addPass(grade);
+      comp.addPass(new OutputPass());
+      return { rect: rc, composer: comp, pass, grade };
+    });
+  }
+
+  // Split-screen render: one quadrant per local player. Rects are CSS-pixel top-left; GL viewport/scissor origins
+  // are bottom-left, so the y is flipped here.
+  render4P(cameras) {
+    if (!this.quads || !this.quads.length) { this.render(); return; }
+    this.resize();
+    const gr = G.env && G.env.grade;
+    if (gr && gr !== this._gradeSrc) {
+      this._gradeSrc = gr;
+      for (const q of this.quads) {
+        const u = q.grade.uniforms;
+        for (const k of ['uSat', 'uVib', 'uContrast', 'uLift', 'uVignette', 'uExposure']) u[k].value = gr[k] ?? GradeShader.uniforms[k].value;
+        u.uShadowTint.value.set(...(gr.uShadowTint || [0.975, 0.99, 1.035]));
+        u.uHighTint.value.set(...(gr.uHighTint || [1.025, 1.0, 0.972]));
+      }
+    }
+    const r = this.renderer;
+    for (let i = 0; i < this.quads.length; i++) {
+      const q = this.quads[i], rc = q.rect;
+      const cam = cameras && cameras[i];
+      if (cam) { q.pass.camera = cam; cam.aspect = rc.w / rc.h; cam.updateProjectionMatrix(); }
+      const gx = rc.x, gy = this._h - rc.y - rc.h, gw = rc.w, gh = rc.h;
+      r.setViewport(gx, gy, gw, gh);
+      r.setScissor(gx, gy, gw, gh);
+      r.setScissorTest(true);
+      q.composer.render();
+    }
+    r.setViewport(0, 0, this._w, this._h);
+    r.setScissorTest(false);
   }
 
   resize() {
@@ -193,6 +267,7 @@ export class Renderer {
     if (w === this._w && h === this._h) return;
     this._w = w; this._h = h;
     this.renderer.setSize(w, h);
+    if (this.local4P) { this.setLocal4P(this.local4P); return; }
     this.composer.setSize(w, h);
     this.gtao?.setSize(w, h);
     this.grade.uniforms.uAspect.value = w / h;
@@ -200,6 +275,8 @@ export class Renderer {
   }
 
   render() {
+    // split-screen: the frame loop calls render4P with the per-player cameras instead
+    if (this.local4P && this.quads?.length) return;
     this.resize();
     // colour grade recommended by the environment theme (day / dusk)
     const gr = G.env && G.env.grade;

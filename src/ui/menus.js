@@ -1030,10 +1030,20 @@ export class Menus {
       requestAnimationFrame(() => requestAnimationFrame(() => im.classList.add('is-on')));
       setTimeout(() => olds.forEach((o) => o.remove()), 900);
     };
+    const lpVal = clamp(s.localPlayers || 1, 1, 4);
+    const lpSeg = this._seg([[1, '1P'], [2, '2P'], [3, '3P'], [4, '4P']], lpVal, (v) => this._setSetting('localPlayers', v));
+    const tmVal = s.localTeams === 'team' ? 'team' : 'split';
+    const tmSeg = this._seg([['split', t('SPLIT')], ['team', t('TOGETHER')]], tmVal, (v) => this._setSetting('localTeams', v));
     const el = h('div', { class: 'iw-screen iw-modesel' },
       bg, h('div', { class: 'iw-ss__scrim' }),
       this._header('PLAY', { sub: 'Choose a mode · you and the bots' }),
       h('div', { class: 'iw-modesel__row' + (cards.length > 2 ? ' is-three' : '') }, cards),
+      h('div', { class: 'iw-modesel__players iw-in iw-in--up' },
+        h('span', { class: 'iw-modesel__playerslbl' }, h('i', { html: GLYPHS.users }), t('LOCAL PLAYERS')),
+        lpSeg.el,
+        h('span', { class: 'iw-modesel__teamslbl' }, h('i', { html: GLYPHS.swords }), t('LOCAL TEAMS')),
+        tmSeg.el,
+        h('span', { class: 'iw-modesel__playersnote' }, t('P1: keyboard & mouse · P2–P4: gamepad · Boss Battle is solo'))),
       this._prompts([[['←', '→'], 'DPad', 'Mode'], ['Enter', 'A', 'Select'], ['Esc', 'B', 'Back']]));
     el.dataset.mode = cur;
     setBg(cur);

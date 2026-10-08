@@ -75,7 +75,7 @@ export class PlayerController {
       return;
     }
     // while the map diorama is up the mouse / right stick steer the map cursor, not your camera
-    const mapUp = (G.rig?.mapK ?? 0) > 0.05 || inp.down('Tab') || inp.down('KeyM') || inp.padButton(8);
+    const mapUp = (this.rig?.mapK ?? 0) > 0.05 || inp.down('Tab') || inp.down('KeyM') || inp.padButton(8);
     const ldx = mapUp ? 0 : mdx, ldy = mapUp ? 0 : mdy;
     if (ldx || ldy) {
       const sens = 0.0021 * (s.sensitivity ?? 1) * (s.aimAssistMouse ? friction : 1);
@@ -243,7 +243,7 @@ export class PlayerController {
 
   computeAim() {
     // the gameplay view — while the map diorama is up the rendered camera is overhead, aim stays with the player
-    const a = this.a, cam = G.rig?.gameCam || G.camera;
+    const a = this.a, cam = this.rig?.gameCam || G.rig?.gameCam || G.camera;
     const fwd = cam.getWorldDirection(_fwd);
     // start the ray level with the player so geometry between camera and player is ignored
     _v.copy(a.pos); _v.y += 1.3;

@@ -7,8 +7,14 @@ import { G } from './ctx.js';
 const GAME_KEYS = new Set(['Tab', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Slash', 'Quote']);
 
 export class Input {
-  constructor(canvas) {
+  // opts: { padIndex, useKeyboard }
+  //   padIndex — which gamepad slot this input reads (default 0 = the first connected pad, legacy behaviour).
+  //   useKeyboard — false for pad-only inputs (local split-screen P2–P4), which must not capture the shared
+  //   keyboard / mouse / pointer lock (those belong to player 1).
+  constructor(canvas, opts = {}) {
     this.canvas = canvas;
+    this.padIndex = opts.padIndex ?? 0;
+    this.useKeyboard = opts.useKeyboard !== false;
     this.keys = new Set();
     this.pressed = new Set();       // keys pressed this frame
     this.mouse = { dx: 0, dy: 0, left: false, right: false, leftPressed: false, rightPressed: false };
@@ -19,6 +25,7 @@ export class Input {
     this.padPressed = new Set();
     this.lastDevice = 'kbm';
     this.onKey = null;              // (e) => bool consumed  (menus)
+    if (!this.useKeyboard) return;
     window.addEventListener('keydown', (e) => {
       // ⌘-combos (⌘Q quit, ⌘H hide, ⌘M minimise, ⌘W close …) belong to macOS: never read them as game / menu keys
       // (the menus mapped ⌘Q to "previous tab" and swallowed it). macOS also sends no keyup for a key released while
@@ -78,8 +85,14 @@ export class Input {
   pollPad() {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     let pad = null;
-    for (const p of pads) if (p && p.connected && p.mapping === 'standard') { pad = p; break; }
-    if (!pad) for (const p of pads) if (p && p.connected) { pad = p; break; }
+    // this slot's pad first (split-screen: every Input owns its own slot); slot 0 keeps the legacy
+    // "grab the first connected pad" fallback so single-player behaves exactly as before.
+    const own = pads[this.padIndex];
+    if (own && own.connected) pad = own;
+    else if (this.padIndex === 0) {
+      for (const p of pads) if (p && p.connected && p.mapping === 'standard') { pad = p; break; }
+      if (!pad) for (const p of pads) if (p && p.connected) { pad = p; break; }
+    }
     this.pad = pad;
     this.padPressed.clear();
     if (!pad) return;

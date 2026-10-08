@@ -86,7 +86,7 @@ export function looseVolley(a, c) {
   volley(a, S, m, dir, air);
   // online: the other players' screens loose the same volley (visual arrows; the owner's hits + splats arrive apart)
   netRec(a, 'bow', [r2(m.x), r2(m.y), r2(m.z), r3(dir.x), r3(dir.y), r3(dir.z), r3(c), air ? 1 : 0]);
-  if (a.isLocal) emit('recoil', { amount: 0.004 + 0.004 * S.tier });
+  if (a.isLocal) emit('recoil', { amount: 0.004 + 0.004 * S.tier, actor: a });
   emit('weapon:fire', { actor: a, weapon: W.id, muzzle: m.clone(), dir: dir.clone(), charge: c });
   rumble(a, 0.1 + 0.15 * S.tier, 0.18 + 0.12 * S.tier, 70 + 30 * S.tier);
   return S;

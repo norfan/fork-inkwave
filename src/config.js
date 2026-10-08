@@ -575,6 +575,8 @@ export const DEFAULT_SETTINGS = {
   colorblind: false,
   minimap: true,
   matchLength: 180,
+  localPlayers: 1,          // local split-screen count picked on the PLAY screen (1–4; ?localplayers=2|3|4 overrides)
+  localTeams: 'split',      // PLAY screen team deal for local players: 'split' (1v1 / 2v2) | 'team' (all locals vs the bots)
   lastMode: 'turf',         // battle mode last picked on the stage select: 'turf' | 'zones'
   difficulty: 'normal',
   rumble: 1.0,              // gamepad vibration 0..1 (only while the pad is the last-used device)

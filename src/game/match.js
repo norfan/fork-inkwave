@@ -24,7 +24,9 @@ export class Match {
     this.state = 'init';
     this.stateT = 0;
     this.actors = [];
-    this.controller = null;
+    this.controller = null;          // primary (player 1) controller — legacy single-player pointer
+    this.controllers = [];           // every local controller (split-screen: one per local player)
+    this.localPlayers = [];          // split-screen slots: { actor, rig, input, controller } per local player
     this.result = null;
     this.paused = false;
     this.lastMinuteFired = false;
@@ -56,31 +58,43 @@ export class Match {
     // humans-only stage (config noBots) offline: a match is just you (the ?devstage walk), the attract backdrop nobody
     // (o.mannequins: idle, brainless kids for the render audits)
     const noBots = !!o.noBots;
+    // split-screen: localPlayers local humans (1..4), dealt 2v2 — P1/P3 team 0, P2/P4 team 1; every other slot is a bot.
+    // practice / boss / noBots stages stay single-player regardless of what the URL asks for.
+    const localN = this.attract || this.practice || boss || noBots ? 1 : Math.max(1, Math.min(4, o.localPlayers || 1));
+    const sameTeam = o.localTeamMode === 'team';   // PLAY screen: SPLIT (1v1 / 2v2) or TOGETHER (everyone on team 0 vs the bots)
+    const localSlot = new Map();   // "team:slot" → local player index
+    for (let i = 0; i < localN; i++) localSlot.set(`${sameTeam ? 0 : (i & 1)}:${sameTeam ? i : (i >> 1)}`, i);
     for (let team = 0; team < (boss || this.practice ? 1 : 2); team++) {
       const weapons = pickTeam(team === 0 && !this.attract ? o.weapon : null);
       if (boss) weapons.push(...pickTeam(null));   // the whole squad on one side: 8 kids, every weapon kind
       for (let s = 0; s < (this.practice ? 1 : boss ? BOSS_MODE.squad : MATCH.teamSize); s++) {
-        const isLocal = team === 0 && s === 0 && !this.attract;
+        const li = localSlot.get(`${team}:${s}`);
+        const isLocal = li !== undefined && !this.attract;
         if (noBots && !isLocal && !(this.attract && o.mannequins)) continue;
-        // subs: yours from the loadout; bots carry a random one (about half keep their weapon's default)
-        const sub = isLocal ? o.sub : Math.random() < 0.5 ? null : SUB_ORDER[(Math.random() * SUB_ORDER.length) | 0];
-        const special = isLocal ? o.special : Math.random() < 0.5 ? null : SPECIAL_ORDER[(Math.random() * SPECIAL_ORDER.length) | 0];
+        // subs: yours from the loadout (P1 only); bots carry a random one (about half keep their weapon's default)
+        const sub = isLocal ? (li === 0 ? o.sub : null) : Math.random() < 0.5 ? null : SUB_ORDER[(Math.random() * SUB_ORDER.length) | 0];
+        const special = isLocal ? (li === 0 ? o.special : null) : Math.random() < 0.5 ? null : SPECIAL_ORDER[(Math.random() * SPECIAL_ORDER.length) | 0];
         const a = new Actor({
           team, slot: s, weapon: weapons[s], sub, special, isLocal, isBot: !isLocal,
-          name: isLocal ? (o.playerName || 'You') : names[ni++ % names.length],
-          // your look from the Locker (an empty style resolves from your name); bots get random looks
-          style: isLocal ? { ...(o.style || {}) } : randomStyle(), CharacterClass,
+          name: isLocal ? (li === 0 ? (o.playerName || 'You') : `Player ${li + 1}`) : names[ni++ % names.length],
+          // your look from the Locker (an empty style resolves from your name); other locals + bots get random looks
+          style: isLocal ? (li === 0 ? { ...(o.style || {}) } : randomStyle()) : randomStyle(), CharacterClass,
         });
         if (isLocal && o.style) { /* reserved for future customisation */ }
         G.scene.add(a.character.root);
         if ((!isLocal || o.autopilot) && !(noBots && !isLocal)) a.bot = new BotBrain(a, o.difficulty);
         this.actors.push(a);
+        if (isLocal) {
+          const rig = o.rigs?.[li] || o.rig, inp = o.inputs?.[li] || o.input;
+          const ctl = !o.autopilot ? new PlayerController(a, rig, inp) : null;
+          if (ctl) { this.controllers[li] = ctl; this.controller = this.controller || ctl; }
+          this.localPlayers[li] = { actor: a, rig, input: inp, controller: ctl };
+        }
       }
     }
     G.actors = this.actors;
     this.local = this.actors.find((a) => a.isLocal) || null;
     G.local = this.local;
-    if (this.local && !o.autopilot) this.controller = new PlayerController(this.local, o.rig, o.input);
     // initial placement on the spawn decks (standing, no drop)
     for (const a of this.actors) {
       const pad = G.level.spawnPads[a.team];
@@ -115,7 +129,7 @@ export class Match {
     G.actors = this.actors;
     this.local = this.actors.find((a) => a.isLocal) || null;
     G.local = this.local;
-    if (this.local && !o.autopilot) this.controller = new PlayerController(this.local, o.rig, o.input);
+    if (this.local && !o.autopilot) { this.controller = new PlayerController(this.local, o.rig, o.input); this.controllers[0] = this.controller; }
     for (const a of this.actors) {
       const pad = G.level.spawnPads[a.team];
       const ang = (a.slot / (this.mode === 'boss' ? BOSS_MODE.squad : 4)) * Math.PI * 2 + 0.6, rr = this.mode === 'boss' ? 1.7 : 1.2;
@@ -245,9 +259,14 @@ export class Match {
   }
 
   updateController(dt) {
-    if (!this.controller) return;
-    this.controller.enabled = this.state === 'playing' && !this.paused && this.local.alive;
-    this.controller.update(dt);
+    // every local player's controller runs once per rendered frame (split-screen); single-player keeps
+    // this.controller as the primary so legacy callers behave identically.
+    const live = this.state === 'playing' && !this.paused;
+    for (const c of this.controllers) {
+      if (!c) continue;
+      c.enabled = live && c.a.alive;
+      c.update(dt);
+    }
   }
 
   _judge() {

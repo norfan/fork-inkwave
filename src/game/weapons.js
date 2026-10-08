@@ -1186,7 +1186,7 @@ export class Projectiles {
       G.audio?.play('blaster_pump', { pos: a.isLocal ? undefined : m, volume: a.isLocal ? 0.55 : 0.4, delay: 0.27 });
       // muzzle flash: fxHooks draws the blaster-specific one on 'weapon:fire'
     }
-    if (a.isLocal) emit('recoil', { amount: 0.012 });   // one clean pitch kick; no trauma shake for your own gun
+    if (a.isLocal) emit('recoil', { amount: 0.012, actor: a });   // one clean pitch kick; no trauma shake for your own gun
     emit('weapon:fire', { actor: a, weapon: w.id, muzzle: m.clone(), dir: dir.clone() });
     rumble(a, 0.28, 0.4, 95);
   }
@@ -1230,7 +1230,7 @@ export class Projectiles {
       p.vel.set(Math.sin(ang) * cu * sp, Math.sin(up) * sp, Math.cos(ang) * cu * sp);
       this._push(p);
     }
-    if (a.isLocal) emit('recoil', { amount: 0.007 });
+    if (a.isLocal) emit('recoil', { amount: 0.007, actor: a });
     emit('weapon:fire', { actor: a, weapon: w.id, muzzle: new THREE.Vector3(m.x + fx * 0.6, m.y + 0.3, m.z + fz * 0.6), dir: new THREE.Vector3(fx, Math.sin(up), fz).normalize() });
     rumble(a, 0.3, 0.32, 110);
   }
@@ -1298,7 +1298,7 @@ export class Projectiles {
       G.audio?.play('shoot_charger', { pos: a.isLocal ? undefined : m, volume: a.isLocal ? 0.8 : 0.6, pitch: 1.08 - 0.16 * charge });
       // muzzle flash: fxHooks draws the charger-specific one on 'weapon:fire'
     }
-    if (a.isLocal) emit('recoil', { amount: 0.005 + charge * 0.013 });
+    if (a.isLocal) emit('recoil', { amount: 0.005 + charge * 0.013, actor: a });
     rumble(a, 0.12 + charge * 0.45, 0.2 + charge * 0.35, 80 + charge * 90);
   }
 
@@ -1326,7 +1326,7 @@ export class Projectiles {
       this._push(p);
     }
     if (a.isLocal || a._nearCamera()) G.audio?.play('bomb_throw', { pos: a.isLocal ? undefined : m, volume: a.isLocal ? 0.7 : 0.5, pitch: 0.8 });
-    if (a.isLocal) emit('recoil', { amount: 0.008 });
+    if (a.isLocal) emit('recoil', { amount: 0.008, actor: a });
     emit('weapon:fire', { actor: a, weapon: w.id, muzzle: m.clone(), dir: dir.clone() });
     rumble(a, 0.2, 0.25, 90);
   }

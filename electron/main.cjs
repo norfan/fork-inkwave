@@ -7,9 +7,9 @@ const { pathToFileURL } = require('node:url');
 
 const ROOT = path.join(__dirname, '..');
 
-// GPU: run WebGL through ANGLE's Metal backend (instead of the deprecated OpenGL one),
-// prefer the discrete GPU on dual-GPU Macs, and never fall back to software rendering.
-app.commandLine.appendSwitch('use-angle', 'metal');
+// GPU: ANGLE backend differs by platform — Metal on macOS, default hardware D3D11 on Windows.
+// (Forcing 'metal' on Windows makes Chromium fall back to WARP software rendering, which is very slow.)
+if (process.platform === 'darwin') app.commandLine.appendSwitch('use-angle', 'metal');
 app.commandLine.appendSwitch('force_high_performance_gpu');
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
 
@@ -56,7 +56,9 @@ function createWindow() {
     fullscreenable: true,
     webPreferences: { contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'preload.cjs') },
   });
-  win.loadURL('app://inkwave/index.html');
+  // CLI query args (e.g. `npm start -- ?localplayers=4&autostart=180`) forward to the page URL for dev/testing.
+  const qs = process.argv.slice(1).find((a) => a.startsWith('?'));
+  win.loadURL('app://inkwave/index.html' + (qs || ''));
   // Keep any outbound links in the user's browser instead of inside the game window.
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
 

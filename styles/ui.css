@@ -2804,6 +2804,13 @@ circle.iw-ico-cut { fill: var(--cut, #fff); }
 .iw-modesel__row.is-three .iw-mode__splat { width: calc(var(--u) * 23); height: calc(var(--u) * 23); }
 .iw-modesel__row.is-three .iw-mode__squid { width: calc(var(--u) * 9.5); height: calc(var(--u) * 9.5); }
 .iw-modesel__row.is-three .iw-mode__tape .iw-display { font-size: calc(var(--u) * 3); }
+/* local players / teams pickers under the mode cards (1P..4P + SPLIT/TOGETHER, persisted in settings) */
+.iw-modesel__players { position: absolute; left: 50%; top: calc(var(--u) * 49.5); translate: -50% 0; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: calc(var(--u) * 1.4) calc(var(--u) * 1.7); pointer-events: auto; max-width: calc(var(--u) * 92); }
+.iw-modesel__players .iw-seg { min-width: calc(var(--u) * 15); }
+.iw-modesel__playerslbl, .iw-modesel__teamslbl { display: inline-flex; align-items: center; gap: calc(var(--u) * .8); font: 900 var(--fs-sm) / 1 'Rubik', sans-serif; letter-spacing: .18em; color: #fff; filter: drop-shadow(0 calc(var(--u) * .25) 0 var(--k)); white-space: nowrap; }
+.iw-modesel__playerslbl i { font-size: calc(var(--u) * 2.4); color: var(--a); }
+.iw-modesel__teamslbl i { font-size: calc(var(--u) * 2.4); color: var(--b); }
+.iw-modesel__playersnote { flex-basis: 100%; text-align: center; font: 600 var(--fs-xs) / 1.25 'Rubik', sans-serif; letter-spacing: .04em; color: rgba(255, 255, 255, .58); }
 .iw-mode--zones { --mc: #ffc233; --mc-rgb: 255, 194, 51; --mc-l: #ffe08a; --mc-d: #a8740a; --mc-ink: #3a2800; }
 .iw-mode--zones .iw-mode__tape .iw-display { color: #2a1d00; }
 .iw-mode__zone { display: block; width: calc(var(--u) * 8); height: calc(var(--u) * 8); color: #fff; filter: drop-shadow(0 calc(var(--u) * .35) 0 var(--k)); }

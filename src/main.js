@@ -69,6 +69,8 @@ class Game {
     if (this.settings.fovMode !== 'h') { this.settings.fov = DEFAULT_SETTINGS.fov; this.settings.fovMode = 'h'; saveJSON('inkwave.settings', this.settings); }
     this.profile = loadJSON('inkwave.profile', DEFAULT_PROFILE);
     if (WEAPON_SUCCESSOR[this.profile.weapon]) this.profile.weapon = WEAPON_SUCCESSOR[this.profile.weapon];   // retired weapons
+    // local split-screen count (?localplayers=2|3|4 — Mario Kart style, 1 = the usual single-player screen)
+    this.local4pN = Math.max(1, Math.min(4, +(params.get('localplayers') || 1) || 1));
     const app = document.getElementById('app');
     this.uiRoot = document.getElementById('ui-root');
     this.fadeEl = document.getElementById('fade');
@@ -478,6 +480,51 @@ class Game {
   }
 
 
+  // ---------------------------------------------------------------------------------------- local split-screen (1–4)
+  // Every local player gets their own CameraRig + camera (P1 reuses the global rig/camera so single-player code paths
+  // keep working), their own Input (P1 keyboard+mouse+pad 0; P2–P4 pad-only on their pad slot), and a quadrant of the
+  // screen. The match deals them 2v2 (P1/P3 vs P2/P4); unfilled pad slots idle until a pad connects.
+  _localCount(opts, practice, map) {
+    if (practice || opts.mode === 'boss' || mapNoBots(map.id)) return 1;
+    // ?localplayers (the packaged/CLI arg) wins; otherwise the PLAY screen's LOCAL PLAYERS pick persists in settings
+    const want = params.has('localplayers') ? this.local4pN : (this.settings.localPlayers || 1);
+    return Math.max(1, Math.min(4, (opts.localPlayers || want) | 0));
+  }
+  async _beginLocal4P(n) {
+    this._endLocal4P(false);
+    if (n <= 1) { this.localRigs = [this.rig]; this.localInputs = [this.input]; return; }
+    this.R.setLocal4P(n);
+    const canvas = this.R.renderer.domElement;
+    this.localInputs = [this.input];
+    for (let i = 1; i < n; i++) this.localInputs.push(new Input(canvas, { padIndex: i, useKeyboard: false }));
+    this.localRigs = [this.rig];
+    for (let i = 1; i < n; i++) {
+      const cam = new THREE.PerspectiveCamera(70, 16 / 9, 0.15, 6500);
+      cam.position.copy(G.camera.position);
+      this.localRigs.push(new CameraRig(cam));
+    }
+    try {
+      const mod = await import('./ui/local4p.js');
+      this.local4p = new mod.Local4P(this.uiRoot, n);
+    } catch (e) { console.error('[inkwave] local4p', e); this.local4p = null; }
+  }
+  _endLocal4P(alsoRender = true) {
+    if (alsoRender) this.R.setLocal4P(0);
+    this.local4p?.dispose?.(); this.local4p = null;
+    this.localInputs = null; this.localRigs = null; this._localIdx = null;
+  }
+  _localIndexOf(a) { return this._localIdx ? (this._localIdx.get(a) ?? -1) : -1; }
+  _rigNear(pos) {
+    if (!this.localRigs) return this.rig;
+    let best = this.rig, bd = Infinity;
+    for (const rg of this.localRigs) {
+      if (!rg) continue;
+      const d = rg.camera.position.distanceToSquared(pos);
+      if (d < bd) { bd = d; best = rg; }
+    }
+    return best;
+  }
+
   // ---------------------------------------------------------------------------------------- events → HUD/audio
   _bindEvents() {
     const self = this;
@@ -485,25 +532,34 @@ class Game {
     on('hit', ({ attacker, victim, damage, killed }) => {
       if (!this.match || this.match.attract) return;
       if (attacker?.isLocal) {
-        this.hud?.hitMarker(killed ? 'kill' : 'hit');
+        const li = this._localIndexOf(attacker);
+        if (this.local4p && li >= 0) this.local4p.hit(li, killed ? 'kill' : 'hit');
+        else this.hud?.hitMarker(killed ? 'kill' : 'hit');
         if (G.time - lastHitSnd > 0.06) { lastHitSnd = G.time; G.audio?.play('hit_marker', { volume: 0.6 }); }
       }
     });
     on('damage', ({ victim, amount, attacker, source }) => {
       if (!this.match || this.match.attract || !victim.isLocal) return;
+      const li = this._localIndexOf(victim);
       let ang = null;
       if (attacker && attacker !== victim) {
         const v = this._dmgV || (this._dmgV = new THREE.Vector3());
-        v.copy(attacker.pos); v.y += 1; v.project(G.camera);
+        const cam = (this.local4p && li >= 0) ? (this.localRigs?.[li]?.gameCam || G.camera) : G.camera;
+        v.copy(attacker.pos); v.y += 1; v.project(cam);
         let dx = v.x, dy = -v.y;
         const behind = v.z > 1;
         if (behind) { dx = -dx; dy = -dy; }
         if (!behind && Math.abs(dx) < 1 && Math.abs(dy) < 1) ang = dx >= 0 ? 0 : Math.PI;   // attacker on screen: ink the nearer side edge, never over them
         else ang = Math.atan2(dy * innerHeight, dx * innerWidth);
       }
-      this.hud?.damage(clamp(amount / 80, 0.15, 1), G.teamHex[victim.enemyTeam], ang);
+      if (this.local4p && li >= 0) {
+        this.local4p.damage(li, clamp(amount / 80, 0.15, 1), ang);
+        if (amount >= 40) this.localRigs?.[li]?.addShake(clamp((amount - 30) / 220, 0, 0.4));   // heavy hits move that player's camera
+      } else {
+        this.hud?.damage(clamp(amount / 80, 0.15, 1), G.teamHex[victim.enemyTeam], ang);
+        if (amount >= 40) this.rig.addShake(clamp((amount - 30) / 220, 0, 0.4));
+      }
       if (G.time - lastHurtSnd > 0.25) { lastHurtSnd = G.time; G.audio?.play('hurt', { volume: 0.7 }); }
-      if (amount >= 40) this.rig.addShake(clamp((amount - 30) / 220, 0, 0.4));   // only heavy hits move the camera; chip damage reads through the HUD
     });
     // a squid dropping back into its own ink (dolphin-jump re-entry, hopping in from dry ground) gets a wet plunge;
     // transform dives already play squid_in
@@ -519,6 +575,19 @@ class Game {
       if (!this.match || this.match.attract) return;
       this._addDeathMark(victim);
       const local = this.match.local;
+      if (this.local4p) {
+        const vi = this._localIndexOf(victim), ai = this._localIndexOf(attacker);
+        if (ai >= 0) { G.audio?.play('splat_enemy', { volume: 0.9 }); this.local4p.hit(ai, 'kill'); }
+        if (vi >= 0) {
+          G.audio?.play('splatted_self');
+          G.audio?.duck?.(0.45, 2.2);
+          const by = attacker ? attacker.name : cause === 'water' ? null : 'enemy ink';
+          this.local4p.splatted(vi, { by, byColor: attacker ? G.teamHex[attacker.team] : '#6fd0ff', respawn: PLAYER.respawnTime, attacker: attacker || null, cause });
+          const rg = this.localRigs?.[vi];
+          if (rg) { rg.mode = 'spectate'; rg.spectate = { actor: attacker && attacker.alive ? attacker : null, pos: victim.pos.clone(), from: victim.pos.clone() }; rg.lookAt.copy(victim.pos); }
+        }
+        return;
+      }
       if (attacker?.isLocal) {
         G.audio?.play('splat_enemy', { volume: 0.9 });
         this.hud?.feed({ text: { id: 'You splatted {name}!', params: { name: t(victim.name) } }, color: G.teamHex[local.team], kind: 'kill' });
@@ -541,20 +610,48 @@ class Game {
     on('respawn', ({ actor }) => {
       if (!this.match || this.match.attract) return;
       if (actor.isLocal) {
-        this.hud?.hideSplatted(); this.rig.follow(actor, true); this.rig.yaw = actor.yaw; this.rig.pitch = -0.12;
-        // a Super Jump planned on the TAB map while splatted launches now (normal charge + flight)
-        this.match.controller?.launchQueuedJump?.();
+        const li = this._localIndexOf(actor);
+        if (this.local4p && li >= 0) {
+          this.local4p.respawned(li);
+          const rg = this.localRigs?.[li];
+          if (rg) { rg.follow(actor, true); rg.yaw = actor.yaw; rg.pitch = -0.12; }
+          // a Super Jump planned on the TAB map while splatted launches now (normal charge + flight)
+          this.match.localPlayers?.[li]?.controller?.launchQueuedJump?.();
+        } else {
+          this.hud?.hideSplatted(); this.rig.follow(actor, true); this.rig.yaw = actor.yaw; this.rig.pitch = -0.12;
+          // a Super Jump planned on the TAB map while splatted launches now (normal charge + flight)
+          this.match.controller?.launchQueuedJump?.();
+        }
       }
     });
     on('special:ready', ({ actor }) => {
       if (actor.isLocal && !this.match?.attract) { G.audio?.play('special_ready'); }
     });
     on('special:use', ({ actor, id }) => {
-      if (actor.isLocal && !this.match?.attract) this.hud?.banner('special', t(SPECIALS[id].name).toUpperCase() + '!');
+      if (!actor.isLocal || this.match?.attract) return;
+      const text = t(SPECIALS[id].name).toUpperCase() + '!';
+      const li = this._localIndexOf(actor);
+      if (this.local4p && li >= 0) this.local4p.banner('special', text);
+      else this.hud?.banner('special', text);
     });
-    on('shake', ({ amount, pos }) => { if (!this.match?.attract) this.rig.addShake(amount, pos); });
-    on('recoil', ({ amount }) => { if (!this.match?.attract) this.rig.recoil(amount); });
-    on('lowink', ({ actor }) => { if (actor.isLocal) this._lowInkFlash = 1.2; });
+    on('shake', ({ amount, pos, actor }) => {
+      if (this.match?.attract) return;
+      if (this.local4p) {
+        const rig = actor ? (this.localRigs?.[this._localIndexOf(actor)] || this.rig) : pos ? this._rigNear(pos) : this.rig;
+        rig?.addShake(amount, pos);
+      } else this.rig.addShake(amount, pos);
+    });
+    on('recoil', ({ amount, actor }) => {
+      if (this.match?.attract) return;
+      const rig = actor ? (this.localRigs?.[this._localIndexOf(actor)] || this.rig) : this.rig;
+      rig.recoil(amount);
+    });
+    on('lowink', ({ actor }) => {
+      if (!actor.isLocal) return;
+      const li = this._localIndexOf(actor);
+      if (this.local4p && li >= 0) this.local4p.lowInk(li);
+      else this._lowInkFlash = 1.2;
+    });
     // footsteps (character animation → 'actor:footstep'): surface-aware, only for actors near the camera
     on('actor:footstep', ({ actor, surface, pos, speed }) => {
       if (!actor || !actor.alive || actor.form === 'squid') return;
@@ -564,19 +661,24 @@ class Game {
       const vol = (actor.isLocal ? 0.7 : 0.45) * Math.min(1, 0.45 + (speed || actor.anim.speed || 0) / 8);
       G.audio?.play(name, { pos: actor.isLocal ? undefined : p, volume: vol });
     });
-    on('match:oneminute', () => { this.hud?.banner('one_minute'); G.audio?.play('one_minute'); if (this.match?.mode !== 'boss') this._playMusic('battle_final'); });
-    on('match:count', ({ n }) => { this.hud?.countdown(n); G.audio?.play('final_count'); });
+    on('match:oneminute', () => {
+      if (this.local4p) this.local4p.banner('one_minute', t('ONE MINUTE LEFT!'));
+      else this.hud?.banner('one_minute');
+      G.audio?.play('one_minute'); if (this.match?.mode !== 'boss') this._playMusic('battle_final');
+    });
+    on('match:count', ({ n }) => { if (this.local4p) this.local4p.countdown(n); else this.hud?.countdown(n); G.audio?.play('final_count'); });
     on('match:state', ({ state, match }) => {
       if (match.attract || match !== this.match) return;
       if (state === 'intro') this._intro();
       if (state === 'playing') {
-        if (!match.practice) { this.hud?.banner('go'); G.audio?.play('go_horn'); }
+        if (!match.practice) { if (this.local4p) this.local4p.banner('go', t('GO!')); else this.hud?.banner('go'); G.audio?.play('go_horn'); }
         if (match.mode !== 'boss') this._playMusic('battle');   // boss mode: the boss audio director scores it by phase
         if (this.match.local) { this.rig.follow(this.match.local, true); }
       }
       if (state === 'finish') {
         const bossWon = match.mode === 'boss' && match.boss?.dead;   // the defeat already had its moment (boss:defeat)
-        this.hud?.banner('timesup');
+        if (this.local4p) this.local4p.banner('timesup', t("TIME'S UP!"));
+        else this.hud?.banner('timesup');
         if (!bossWon) G.audio?.play('times_up');
         if (match.mode !== 'boss') {
           // the final-minute recording is timed to ring out just past the horn; anything else stops here
@@ -586,7 +688,7 @@ class Game {
         this.input.exitLock();
         if (match.boss) this._bossFinishCam(match.boss);
       }
-      if (state === 'judge') this._judge();
+      if (state === 'judge') { this._endLocal4P(); this._judge(); }
     });
   }
 
@@ -715,13 +817,23 @@ class Game {
     this._applyNight();   // after any stage rebuild too (new prop kit / decor)
     this.mapDef = map;
     this._setPalette(this._pickPalette());
+    const localN = this._localCount(opts, practice, map);
+    await this._beginLocal4P(localN);
     const m = (this.match = G.match = new Match({
       attract: false, practice, duration: opts.duration, mode: opts.mode, difficulty: opts.difficulty, weapon: this.profile.weapon || 'shooter', sub: this._subFor(this.profile.weapon), special: this._specialFor(this.profile.weapon),
       playerName: this.profile.name || 'Player', CharacterClass: this.CharacterClass, rig: this.rig, input: this.input,
+      rigs: this.localRigs, inputs: this.localInputs, localPlayers: localN,
+      localTeamMode: params.get('localteams') || this.settings.localTeams || 'split',   // PLAY screen: all locals on one team vs bots ('team') or dealt across teams ('split')
       autopilot: params.has('autopilot'), style: this.profile.style || null, noBots: mapNoBots(map.id),   // (devstage: a solo walk)
     }));
     m.setup();
     await this._warmCharacters(m);
+    // split-screen: remember which actor belongs to which screen corner, and park every local rig on its own squid
+    this._localIdx = new Map();
+    m.localPlayers.forEach((p, i) => this._localIdx.set(p.actor, i));
+    for (const lp of m.localPlayers) {
+      if (lp.rig) { lp.rig.follow(lp.actor, true); lp.rig.yaw = lp.actor.team === 0 ? 0 : Math.PI; lp.rig.dioFlip = lp.actor.team === 1; }
+    }
     this.minimap.setViewerTeam(0);
     G.mode = 'match';
     this.hud?.setVisible(false);
@@ -891,12 +1003,13 @@ class Game {
     if (this.match.state !== 'playing' && this.match.state !== 'intro') return;
     if (G.netm) {   // online: the match carries on underneath the menu
       this.input.exitLock();
-      if (this.match.controller) this.match.controller.enabled = false;
+      for (const c of this.match.controllers) if (c) c.enabled = false;
       this.menus?.show('pause');
       return;
     }
     this.match.paused = true;
     this.input.exitLock();
+    for (const c of this.match.controllers) if (c) c.enabled = false;
     this.menus?.show('pause');
     G.audio?.duck?.(0.5, 99);
     G.music?.pause?.(); // a recording holds its place so the final-minute song stays in step with the clock
@@ -905,7 +1018,7 @@ class Game {
     if (!this.match) return;
     this.menus?.show(null);
     this.match.paused = false;
-    if (this.match.controller) this.match.controller.enabled = true;
+    for (const c of this.match.controllers) if (c) c.enabled = true;
     this.input.requestLock();
     G.audio?.duck?.(1, 0.01);
     G.music?.resume?.();
@@ -914,6 +1027,7 @@ class Game {
     clearTimeout(this._netEndT);
     if (G.net && G.net.state !== 'offline' && G.net.state !== 'error') G.net.leave();
     this.input.exitLock();
+    this._endLocal4P();   // split-screen belongs to a live match only
     this.menus?.show(null);
     await this._fade(1, 350);
     this.hud?.setVisible(false);
@@ -1125,7 +1239,7 @@ class Game {
     const tA = performance.now();
     G.renderer.info.reset();
     G.time += dt;
-    this.input.pollPad();
+    for (const inp of this.localInputs || [this.input]) inp.pollPad();
     this._padMenus();
     G.net?.update?.(dt);
     const m = this.match;
@@ -1138,6 +1252,13 @@ class Game {
       for (let i = 0; i < sub; i++) m.update(dt / sub);
       if (!m.paused) { G.projectiles.update(dt); G.subs.update(dt); G.specials.update(dt); }
       if (m.attract) this._updateAttract(dt);
+      else if (m.localPlayers?.length) {
+        // split-screen: every local rig follows its own squid (and re-follows after a respawn)
+        for (const lp of m.localPlayers) {
+          const rg = lp.rig, a = lp.actor;
+          if (m.state === 'playing' && a?.alive && rg && rg.mode !== 'follow' && rg.mode !== 'path') rg.follow(a, true);
+        }
+      }
       else if (m.state === 'playing' && m.local?.alive && this.rig.mode !== 'follow' && this.rig.mode !== 'path') this.rig.follow(m.local, true);
     }
     if (!m || !m.paused) G.fx.update(dt, G.camera);
@@ -1157,13 +1278,25 @@ class Game {
     this.props?.update?.(dt, G.time);
     // map diorama: held map key during live play (or while waiting to respawn) swoops the view overhead — but not while
     // aiming a Vortex Strike (that uses the flat stage map)
-    const strikeAiming = !!(m?.local?.specialActive && m.local.specialActive.id === 'strike' && m.local.specialActive.aiming);
-    this.rig.setMap?.(!!(m && !m.attract && !m.paused && m.state === 'playing' && m.controller?.mapHeld && !this.menus?.current && !strikeAiming));
-    this.rig.update(dt);
+    if (m && m.localPlayers?.length) {
+      for (const lp of m.localPlayers) {
+        const rg = lp.rig, ctl = lp.controller, a = lp.actor;
+        if (!rg) continue;
+        const strikeAimP = !!(a?.specialActive && a.specialActive.id === 'strike' && a.specialActive.aiming);
+        rg.setMap?.(!!(m && !m.attract && !m.paused && m.state === 'playing' && ctl?.mapHeld && !this.menus?.current && !strikeAimP));
+        rg.update(dt);
+        if (ctl && m.state === 'playing') ctl.computeAim?.();
+      }
+    } else {
+      const strikeAiming = !!(m?.local?.specialActive && m.local.specialActive.id === 'strike' && m.local.specialActive.aiming);
+      this.rig.setMap?.(!!(m && !m.attract && !m.paused && m.state === 'playing' && m.controller?.mapHeld && !this.menus?.current && !strikeAiming));
+      this.rig.update(dt);
+      // local player camera-dependent aim must use this frame's camera
+      if (m && m.controller && m.state === 'playing') m.controller.computeAim?.();
+    }
     this._dioFog();
     this.diorama?.update(dt, this.rig.mapK);
-    // local player camera-dependent aim must use this frame's camera
-    if (m && m.controller && m.state === 'playing') m.controller.computeAim?.();
+    this.local4p?.update(dt);
     // bomb arc preview
     const loc = m?.local;
     const orbReady = !!(loc && loc.specialActive && loc.specialActive.id === 'booyah' && loc.specialActive.charge >= 1);
@@ -1210,7 +1343,10 @@ class Game {
     this._frameN = (this._frameN || 0) + 1;
     if (this.settings.quality !== 'low' || (this._frameN & 1)) sm.needsUpdate = true;
     if (!this._skipRender) {
-      if (!setUp) this.R.render();
+      if (!setUp) {
+        if (this.R.local4P && m?.localPlayers?.length) this.R.render4P(m.localPlayers.map((p) => p.rig?.camera));
+        else this.R.render();
+      }
       if (this.showcase.mode) sm.needsUpdate = true;
       this.showcase.render();
     }
@@ -1218,10 +1354,10 @@ class Game {
     const ps = this.perf || (this.perf = { sim: 0, render: 0, calls: 0, tris: 0 });
     ps.sim += (tB - tA - ps.sim) * 0.05; ps.render += (tC - tB - ps.render) * 0.05;
     ps.calls = G.renderer.info.render.calls; ps.tris = G.renderer.info.render.triangles;
-    // HUD
-    if (m && !m.attract && this.hud && (m.state === 'playing' || m.state === 'intro' || m.state === 'finish')) this._updateHud(dt);
+    // HUD (the split-screen overlay replaces the big single-player HUD while it's up)
+    if (m && !m.attract && !this.local4p && this.hud && (m.state === 'playing' || m.state === 'intro' || m.state === 'finish')) this._updateHud(dt);
     this.menus?.update?.(dt);
-    this.input.endFrame();
+    for (const inp of this.localInputs || [this.input]) inp.endFrame();
   }
 
   // continuous sounds tied to the local player's state (swim gurgle, wall climb, enemy-ink sizzle)

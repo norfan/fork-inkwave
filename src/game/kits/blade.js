@@ -80,7 +80,7 @@ function tap(R, K, w) {
   a.character.trigger('blade_slash', K.side);
   BladeFX.slash(a, K.side, false, 0.1, K.swing.yaw);
   if (heard(a)) G.audio?.play('blade_swish', { pos: sndPos(a), volume: a.isLocal ? 0.55 : 0.42, pitch: K.side > 0 ? 1 : 1.09 });
-  if (a.isLocal) emit('recoil', { amount: 0.004 });
+  if (a.isLocal) emit('recoil', { amount: 0.004, actor: a });
   rumble(a, 0.05, 0.12, 45);
   return true;
 }
@@ -97,7 +97,7 @@ function heavy(R, K, w) {
   a.character.trigger('blade_heavy');
   BladeFX.slash(a, 1, true, 0.12, K.swing.yaw);
   if (heard(a)) G.audio?.play('blade_heavy', { pos: sndPos(a), volume: a.isLocal ? 0.7 : 0.55 });
-  if (a.isLocal) { emit('recoil', { amount: 0.012 }); emit('shake', { amount: 0.1 }); }
+  if (a.isLocal) { emit('recoil', { amount: 0.012, actor: a }); emit('shake', { amount: 0.1, actor: a }); }
   rumble(a, 0.25, 0.3, 120);
 }
 function lungeSafe(a, fx, fz, d) {
@@ -224,7 +224,7 @@ function melee(a, w, S) {
       G.fx?.burst(_v, _v2.negate(), col, { count: S.heavy ? 18 : 10, speed: S.heavy ? 6 : 4, size: 0.09, mist: true });
       G.audio?.play('blade_hit', { pos: a.isLocal ? undefined : _v, volume: a.isLocal ? 0.6 : 0.5, pitch: S.heavy ? 0.78 : 1 });
     }
-    if (a.isLocal) emit('shake', { amount: S.heavy ? 0.22 : 0.06 });
+    if (a.isLocal) emit('shake', { amount: S.heavy ? 0.22 : 0.06, actor: a });
     rumble(a, S.heavy ? 0.4 : 0.15, S.heavy ? 0.45 : 0.2, S.heavy ? 140 : 60);
     emit('blade:hit', { actor: a, victim: e, damage: dmg, heavy: S.heavy });
   }

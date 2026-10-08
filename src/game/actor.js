@@ -826,7 +826,7 @@ export class Actor {
         if (!this.grounded) { this.grounded = true; this._resolve(false, this.pos.y, true); if (!this.grounded) this.vel.y = -6; }
         this.addTurf(G.paint.splat(_v.copy(this.pos).setY(this.pos.y + 0.3), 1.4, this.team, { seed: Math.random() }));
         G.fx?.burst(this.pos, _v2.set(0, 1, 0), this.color, { count: 14, speed: 5, size: 0.09 });
-        if (this.isLocal) emit('shake', { amount: 0.35 });
+        if (this.isLocal) emit('shake', { amount: 0.35, actor: this });
         rumble(this, 0.55, 0.45, 170);
         emit('superjump:land', { actor: this, pos: this.pos.clone() });
       }

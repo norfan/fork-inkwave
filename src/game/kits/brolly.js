@@ -109,7 +109,7 @@ function fireBlast(r, w) {
     G.audio?.play('brolly_blast', { pos: a.isLocal ? undefined : m, volume: a.isLocal ? 0.7 : 0.5 });
     G.fx?.muzzle(m, dir, a.color, 'blaster');
   }
-  if (a.isLocal) emit('recoil', { amount: 0.011 });
+  if (a.isLocal) emit('recoil', { amount: 0.011, actor: a });
   emit('weapon:fire', { actor: a, weapon: w.id, muzzle: m.clone(), dir: dir.clone() });
   a.character.trigger('shoot');
   rumble(a, 0.22, 0.3, 80);
@@ -233,7 +233,7 @@ function breakShield(s) {
   if (s.held) {
     const k = s.kit;
     k.state = 'broken'; k.regrowT = w.regrowTime; k.regrowK = 0; k.open = 0; k.grow = 0; k.openT = 0; k.lockRelease = true;
-    if (s.owner?.isLocal) { rumble(s.owner, 0.45, 0.4, 160); emit('shake', { amount: 0.25 }); }
+    if (s.owner?.isLocal) { rumble(s.owner, 0.45, 0.4, 160); emit('shake', { amount: 0.25, actor: s.owner }); }
   } else o.alive = false;
   emit('brolly:break', { actor: s.owner, pos: s.C.clone(), team: s.team, launched: !s.held });
 }
@@ -267,7 +267,7 @@ function launch(r, k, w) {
   STATS.launches++;
   k.state = 'launched'; k.regrowT = w.regrowTime; k.regrowK = 0; k.open = 0; k.grow = 0; k.openT = 0; k.launchK = 0; k.lockRelease = true;
   sound(a, 'brolly_launch', 0.8);
-  if (a.isLocal) emit('recoil', { amount: 0.008 });
+  if (a.isLocal) emit('recoil', { amount: 0.008, actor: a });
   rumble(a, 0.3, 0.35, 120);
   emit('brolly:launch', { actor: a, pos: pos.clone(), dir: dir.clone() });
 }

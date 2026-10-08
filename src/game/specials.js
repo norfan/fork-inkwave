@@ -1340,7 +1340,7 @@ const IMPL = {
         this._spawn(a, new Twister(this, a, m, dir), 'tw', [...v3(m), ...v3(dir)]);
         a.character.trigger('shoot');
         if (hearable(a)) play('zooka_fire', { pos: a.isLocal ? undefined : m, volume: a.isLocal ? 0.9 : 0.6 });
-        if (a.isLocal) emit('recoil', { amount: 0.02 });
+        if (a.isLocal) emit('recoil', { amount: 0.02, actor: a });
         rumble(a, 0.45, 0.5, 140);
         emit('weapon:fire', { actor: a, weapon: 'zooka', muzzle: m, dir });
       }
@@ -1569,7 +1569,7 @@ const IMPL = {
           burst: { radius: d.splashRadius, splashRadius: d.splashRadius, dmgMax: d.splashMax, dmgMin: d.splashMin, paint: d.paintRadius } });
         a.character.trigger('shoot');
         if (hearable(a)) play('jet_fire', { pos: a.isLocal ? undefined : m, volume: a.isLocal ? 0.8 : 0.55 });
-        if (a.isLocal) emit('recoil', { amount: 0.014 });
+        if (a.isLocal) emit('recoil', { amount: 0.014, actor: a });
         rumble(a, 0.3, 0.4, 100);
       }
       // exhaust ink below
