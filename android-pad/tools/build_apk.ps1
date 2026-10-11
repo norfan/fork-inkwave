@@ -31,7 +31,7 @@ if ($LASTEXITCODE -ne 0) { throw 'aapt2 link failed' }
 New-Item -ItemType Directory -Force -Path (Join-Path $out 'classes') | Out-Null
 $srcs = (Get-ChildItem (Join-Path $root 'src') -Recurse -Filter *.java).FullName
 $cp = "$plat;" + (Join-Path $out 'gen')
-& javac -encoding UTF-8 -source 8 -target 8 -classpath $cp `
+& javac -encoding UTF-8 --release 8 -classpath $cp `
     -d (Join-Path $out 'classes') $srcs
 if ($LASTEXITCODE -ne 0) { throw 'javac failed' }
 
@@ -52,7 +52,11 @@ $stream.Write($bytes, 0, $bytes.Length)
 $stream.Dispose()
 $zip.Dispose()
 
-# 6. sign with a fresh debug keystore
+# 6. zipalign (must run BEFORE signing; an unaligned APK can be rejected by some installers as "invalid package")
+& (Join-Path $bt 'zipalign.exe') -f 4 (Join-Path $out 'base.apk') (Join-Path $out 'aligned.apk')
+if ($LASTEXITCODE -ne 0) { throw 'zipalign failed' }
+
+# 7. sign with a fresh debug keystore
 $ks = Join-Path $out 'pad.keystore'
 if (-not (Test-Path $ks)) {
     & keytool -genkeypair -v -keystore $ks -storepass inkwave -alias pad -keypass inkwave `
@@ -60,7 +64,7 @@ if (-not (Test-Path $ks)) {
     if ($LASTEXITCODE -ne 0) { throw 'keytool failed' }
 }
 & (Join-Path $bt 'apksigner.bat') sign --ks $ks --ks-pass pass:inkwave --key-pass pass:inkwave `
-    --out $apk (Join-Path $out 'base.apk')
+    --out $apk (Join-Path $out 'aligned.apk')
 if ($LASTEXITCODE -ne 0) { throw 'apksigner failed' }
 
 Write-Output ("APK: " + $apk)

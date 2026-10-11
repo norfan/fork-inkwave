@@ -84,12 +84,14 @@ export class Input {
 
   // Phone-as-pad: a virtual gamepad fed over the LAN by pad.html (see src/net/padlink.js + electron/pad-relay.cjs).
   // Shape: { lx, ly, ax, ay (sticks, -1..1), fire, jump, sub, special, squid, map (0..1 / bool) }.
+  // pad.html reports "up" as +Y (screen coords, up = -ny); a standard gamepad reports "up" as -Y on axes 1/3,
+  // so the Y axes are negated here to keep the phone sticks pointing the same way as a real pad.
   // While set, the virtual pad outranks any physical pad on this slot; clear with setVirtual(null) to fall back.
   setVirtual(v) {
     if (!v) { this.virtual = null; return; }
     const f = (n) => Math.max(-1, Math.min(1, +n || 0));
     this.virtual = {
-      lx: f(v.lx), ly: f(v.ly), ax: f(v.ax), ay: f(v.ay),
+      lx: f(v.lx), ly: -f(v.ly), ax: f(v.ax), ay: -f(v.ay),
       fire: f(v.fire), jump: f(v.jump), sub: f(v.sub), special: f(v.special), squid: f(v.squid), map: f(v.map),
     };
     this.lastDevice = 'pad';
