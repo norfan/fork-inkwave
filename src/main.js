@@ -1353,7 +1353,10 @@ class Game {
     const avg = d.acc / d.n;
     d.acc = 0; d.n = 0; d.t = 0;
     const m = this.match;
-    if (this.settings.quality === 'ultra' || document.hidden || !m || m.attract || m.state !== 'playing') { d.fast = 0; return; }
+    // menus (popups, settings, setup…) cover the stage: let dynamic-res engage there too, so
+    // screen switches don't hitch while the 3D scene renders behind them. Only the bare attract
+    // (title, no menu up) keeps full density, and 'ultra' quality never downscales (user choice).
+    if (this.settings.quality === 'ultra' || document.hidden || !m || (m.attract && !this.menus?.current)) { d.fast = 0; return; }
     const s = this.R.dynScale || 1, tgt = this._frameTarget() / 1000;
     if (avg > tgt * 1.12 && s > this.R.dynFloor() + 0.01) { this.R.setDynamicScale(s - 0.125); d.fast = 0; }
     else if (avg < tgt * 1.04 && s < 1 && d.ups < 2) { if (++d.fast >= 3) { this.R.setDynamicScale(s + 0.125); d.fast = 0; d.ups++; } }

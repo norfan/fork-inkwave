@@ -71,6 +71,9 @@ class WsSocket {
     this.gone = false;
     this.at = Date.now();
     this.rate = { t: Date.now(), n: 0, strikes: 0 };
+    // keep the TCP pipe alive: phones on Wi-Fi sit behind NAT/gateways that silently reap
+    // idle sockets; the 30 Hz input stream usually covers it, but keepalive costs nothing
+    try { sock.setKeepAlive(true, 10); } catch { /* not supported on this platform */ }
     sock.on('data', (d) => this._data(d));
     sock.on('error', () => this.close());
     sock.on('close', () => this.relay._gone(this));
