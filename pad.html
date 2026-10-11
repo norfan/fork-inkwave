@@ -32,24 +32,24 @@
   /* right-side aim area: the big empty region on the right of the screen. Swipe it to
      turn the camera (velocity style — release to stop); sits below the map button and
      above the action diamond. */
-  #aim { position: absolute; right: 4vw; top: 5vh; bottom: calc(4vh + 190px); left: 48vw; touch-action: none; }
+  #aim { position: absolute; right: 4vw; top: 5vh; bottom: calc(4vh + 230px); left: 48vw; touch-action: none; }
   /* action diamond (layout mirrored from animal-world-cup's pad): special top, sub left,
-     jump right, squid bottom (the big one), fire centre — hold-to-squid. Sits in the
-     bottom-right corner. */
-  #pad { position: absolute; right: 4vw; bottom: 4vh; width: 44vw; height: 44vw; max-width: 190px; max-height: 190px; }
-  #pad .btn { position: absolute; width: 29%; height: 29%; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255,255,255,.10); border: 2px solid rgba(255,255,255,.38); color: #fff; font: 800 12px/1 'Segoe UI', system-ui, sans-serif; letter-spacing: 1px; touch-action: none; }
+     jump right, squid bottom, fire centre — hold-to-squid. Sits in the bottom-right
+     corner. All five buttons were enlarged ~1/3; fire is the biggest one and yellow. */
+  #pad { position: absolute; right: 4vw; bottom: 4vh; width: 52vw; height: 52vw; max-width: 230px; max-height: 230px; }
+  #pad .btn { position: absolute; width: 34%; height: 34%; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255,255,255,.10); border: 2px solid rgba(255,255,255,.38); color: #fff; font: 800 13px/1 'Segoe UI', system-ui, sans-serif; letter-spacing: 1px; touch-action: none; }
   #pad .btn:active, #pad .btn.on { background: rgba(255,138,20,.75); border-color: #ff8a14; }
-  #btnSpecial { left: 37%; top: 0; }
-  #btnSub { left: 0; top: 37%; }
-  #btnJump { right: 0; top: 37%; }
-  #pad #btnSquid { left: 37%; bottom: 0; width: 32%; height: 32%; font-size: 15px; background: rgba(255,138,20,.28); border-color: rgba(255,138,20,.65); }
-  #pad #btnFire { left: 37%; top: 37%; width: 26%; height: 26%; background: rgba(0,0,0,.42); border-color: rgba(255,255,255,.3); }
+  #btnSpecial { left: 33%; top: 0; }
+  #btnSub { left: 0; top: 33%; }
+  #btnJump { right: 0; top: 33%; }
+  #pad #btnSquid { left: 33%; bottom: 0; width: 34%; height: 34%; background: rgba(0,0,0,.42); border-color: rgba(255,255,255,.3); }
+  #pad #btnFire { left: 29%; top: 29%; width: 42%; height: 42%; font-size: 16px; background: rgba(255,138,20,.28); border-color: rgba(255,138,20,.65); }
   #btnMap { position: absolute; right: 4vw; top: 5vh; width: 11vw; height: 11vw; max-width: 66px; max-height: 66px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255,255,255,.10); border: 2px solid rgba(255,255,255,.38); color: #fff; font: 800 12px/1 'Segoe UI', system-ui, sans-serif; letter-spacing: 1px; touch-action: none; }
   #btnMap:active, #btnMap.on { background: rgba(255,138,20,.75); border-color: #ff8a14; }
   @media (max-width: 760px) {
-    #pad { max-width: 160px; max-height: 160px; }
+    #pad { max-width: 195px; max-height: 195px; }
     #stickL { max-width: 150px; max-height: 150px; }
-    #aim { bottom: calc(4vh + 160px); }
+    #aim { bottom: calc(4vh + 195px); }
     #btnMap { max-width: 54px; max-height: 54px; }
   }
   #hud { display: none; }
