@@ -1571,6 +1571,7 @@ export class Menus {
   /** The player's look, resolved against the live catalog exactly like the in-match Character does (fields never
    *   saved derive from the name hash, so the locker shows the same kid you play as). idx = local player (0 = P1). */
   _style(idx = 0) {
+    if (!this._styleCache) this._styleCache = {};
     const p = this._profile();
     let raw = null;
     try { raw = this.api.getProfileStyle && this.api.getProfileStyle(idx); } catch (e) { raw = null; }
@@ -1579,6 +1580,7 @@ export class Menus {
     try { return LOOK.resolveStyle({ ...raw }, fnv(seed)); } catch (e) { return { ...raw }; }
   }
   _saveStyle(style, idx = 0) {
+    if (!this._styleCache) this._styleCache = {};
     const clean = { ...style };
     this._styleCache[idx || 0] = clean;
     if (this.api.setProfileStyle) { safeCall(() => this.api.setProfileStyle(clean, idx)); return; }
