@@ -1378,6 +1378,28 @@ export class Menus {
       h('span', { class: 'iw-wchip__edit' }, h('i', { html: GLYPHS.pencil })));
     this._fx(weaponChip);
     this._bind(weaponChip, { id: 'weapon', accept: () => { this._sfx('ui_click'); this._go('loadout'); } });
+
+    // ---- local players 2..N: one compact config chip each, so everyone picks weapon + look BEFORE the match
+    // (once the match starts the loadouts are locked — the pause menu no longer offers them)
+    const localN = safeCall(() => this.api.localCount && this.api.localCount()) || 1;
+    const pchips = localN > 1 ? Array.from({ length: localN - 1 }, (_, i) => {
+      const idx = i + 1;
+      const plo = this._loadout(idx);
+      const pW = this._weapons()[plo.weapon] || {};
+      const chip = h('button', { class: 'iw-pchip iw-in' },
+        h('span', { class: 'iw-pchip__tag' }, `PLAYER ${idx + 1}`),
+        h('span', { class: 'iw-pchip__icon', html: weaponIcon(pW.kind || plo.weapon) }),
+        h('span', { class: 'iw-pchip__name' }, h('b', null, pW.name || plo.weapon)),
+        h('span', { class: 'iw-pchip__act', html: GLYPHS.pencil, title: 'LOADOUT' }),
+        h('span', { class: 'iw-pchip__act', html: GLYPHS.hanger, title: 'LOCKER' }));
+      this._fx(chip);
+      const acts = chip.querySelectorAll('.iw-pchip__act');
+      acts[0].addEventListener('click', (e) => { e.stopPropagation(); this._sfx('ui_click'); this._go('loadout', { player: idx }); });
+      acts[1].addEventListener('click', (e) => { e.stopPropagation(); this._sfx('ui_click'); this._go('locker', { player: idx }); });
+      this._bind(chip, { id: 'pchip' + idx, accept: () => { this._sfx('ui_click'); this._go('loadout', { player: idx }); } });
+      return chip;
+    }) : [];
+    const playersRow = pchips.length ? h('div', { class: 'iw-ss__players iw-in' }, pchips) : null;
     const prof = this._profile();
     const lookAv = h('span', { class: 'iw-lchip__av' }, h('span', { class: 'iw-lchip__blob', html: splatSVG({ seed: 17, cls: 'iw-fa', r: 62, arms: 8, drops: 0 }) }), h('span', { class: 'iw-lchip__squid', html: SQUID }));
     const lookChip = h('button', { class: 'iw-wchip iw-lchip iw-in' }, lookAv,
@@ -1472,6 +1494,7 @@ export class Menus {
       h('div', { class: 'iw-ss__left' }, h('div', { class: 'iw-seclabel iw-in' }, h('i', { html: GLYPHS.map }), 'STAGES'), listEl, matchPanel),
       hero,
       h('div', { class: 'iw-ss__foot' }, weaponChip, lookChip, start),
+      playersRow,
       this._prompts([[['↑', '↓'], 'DPad', 'Stage'], [['←', '→'], null, 'Day · Dusk'], ['R', 'Y', 'Mode'], ['Enter', 'A', 'Select'], ['Esc', 'B', 'Back']]));
     el.querySelector('.iw-prompts').children[1].querySelector('.iw-padg').innerHTML = padGlyph('LB') + padGlyph('RB');
 
@@ -1491,9 +1514,10 @@ export class Menus {
     graph.set(diffRow, { up: selTicket, down: () => (st.mode === 'zones' ? start : lenRow) });
     graph.set(lenRow, { up: diffRow, down: start });
     graph.set(tgl, { up: null, down: start });
-    graph.set(weaponChip, { up: tgl, down: null, left: lenOrDiff, right: lookChip });
-    graph.set(lookChip, { up: tgl, down: null, left: weaponChip, right: start });
-    graph.set(start, { up: tgl, down: null, left: lookChip, right: null });
+    graph.set(weaponChip, { up: tgl, down: pchips[0] || null, left: lenOrDiff, right: lookChip });
+    graph.set(lookChip, { up: tgl, down: pchips[0] || null, left: weaponChip, right: pchips[0] || start });
+    pchips.forEach((c, i) => graph.set(c, { up: tgl, down: start, left: pchips[i - 1] || lookChip, right: pchips[i + 1] || start }));
+    graph.set(start, { up: tgl, down: null, left: pchips[pchips.length - 1] || lookChip, right: null });
 
     tickets.forEach(refreshTicket);
     renderStage(false);
@@ -3935,14 +3959,9 @@ export class Menus {
     const zoneMode = snap.mode === 'zones' && !!snap.zones;
     // online the match keeps running underneath this menu, and quitting leaves the room
     const online = !!(G.netm || (G.net && G.net.state === 'match'));
-    // split-screen: each local player can open their own loadout/locker from the pause menu
-    const localN = safeCall(() => this.api.localCount && this.api.localCount()) || 1;
+    // loadouts are chosen BEFORE the match (setup screen); during a match they stay locked
     const items = [
       { id: 'resume', label: online ? 'BACK TO THE MATCH' : 'RESUME', icon: GLYPHS.play, cls: 'iw-btn--menu iw-btn--primary', accept: () => this._resume(), sound: null },
-      ...(!online && localN > 1 ? Array.from({ length: localN - 1 }, (_, i) => ({
-        id: 'ploadout' + (i + 1), label: `PLAYER ${i + 2} · LOADOUT`, icon: GLYPHS.users, cls: 'iw-btn--menu',
-        accept: () => this._go('loadout', { player: i + 1 }), sound: 'ui_click',
-      })) : []),
       { id: 'settings', label: 'SETTINGS', icon: GLYPHS.gear, cls: 'iw-btn--menu', accept: () => this._go('settings') },
       { id: 'howto', label: 'HOW TO PLAY', icon: GLYPHS.question, cls: 'iw-btn--menu', accept: () => this._go('howto') },
       { id: 'quit', label: online ? 'LEAVE ROOM' : 'QUIT MATCH', icon: online ? GLYPHS.exit : GLYPHS.close, cls: 'iw-btn--menu iw-btn--danger', accept: () => this._openModal({

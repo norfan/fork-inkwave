@@ -404,7 +404,11 @@ class Game {
         if (self.menus?.current === 'loadout' && weapon !== undefined) self.showcase.showLoadout(weapon, G.teamColors[0], self.profile.style);
         self._applyPracticeLoadout();   // in practice the new kit is in your hands straight away
       },
-      localCount: () => self.local4pN || 1,
+      localCount: () => {
+        // ?localplayers=N (CLI/launcher) wins; otherwise the PLAY screen's LOCAL PLAYERS pick persists in settings
+        const want = self.local4pN > 1 ? self.local4pN : (self.settings && self.settings.localPlayers) || 1;
+        return Math.max(1, Math.min(4, want | 0));
+      },
       startMatch: (o) => self.startMatch(o),
       // practice: solo on a random stage (no enemies, no clock); the loadout can be changed mid-session
       startPractice: (o) => self.startPractice(o),
