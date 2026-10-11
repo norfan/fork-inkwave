@@ -169,6 +169,7 @@
     if (o.t === 'err') { errEl.textContent = o.e || 'Connection failed'; return; }
     if (o.t === 'welcome') {
       retry = 0;
+      try { ws.send('b|' + JSON.stringify({ t: 'padjoin', device, name: 'Phone' })); } catch {}
       status((seat ? 'PLAYER ' + seat + ' · ' : '') + curRoom + ' · READY', 'ok');
       return;
     }
@@ -179,10 +180,11 @@
   function join() {
     const room = (ROOM || $('code').value || '').trim().toUpperCase();
     if (!room) { errEl.textContent = 'Enter the room code from the big screen.'; return; }
+    errEl = $('err');
+    statusEl = $('status');
     errEl.textContent = '';
     $('code-card').style.display = 'none';
     $('hud').classList.add('on');
-    statusEl = $('status');
     connect(room);
   }
   $('join').addEventListener('click', join);
