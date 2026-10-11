@@ -6,4 +6,7 @@ contextBridge.exposeInMainWorld('inkwaveNative', {
   isFullScreen: () => ipcRenderer.sendSync('fs:get'),
   setFullScreen: (on) => ipcRenderer.send('fs:set', !!on),
   onFullScreenChange: (cb) => { ipcRenderer.on('fs:changed', (_e, on) => cb(!!on)); },
+  // phone-as-pad LAN relay (port 0 = relay not running)
+  padPort: () => ipcRenderer.sendSync('pad:port'),
+  padIps: () => ipcRenderer.invoke('pad:ips'),
 });

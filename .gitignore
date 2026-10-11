@@ -15,3 +15,6 @@ songs/**/*.opus
 songs/**/*.wav
 songs/**/*.flac
 songs/manifest.json
+
+# android pad build intermediates
+android-pad/build/

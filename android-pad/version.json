@@ -1,0 +1,7 @@
+{
+  "app": "INKWAVE pad",
+  "package": "com.inkwave.pad",
+  "versionName": "1.0.0",
+  "versionCode": 1,
+  "relayPort": 13000
+}

@@ -28,7 +28,7 @@ import { WhatsNew } from './news.js';
 import { t, LANGUAGES } from '../i18n/strings.js';
 import { ERR, codeFromText } from '../net/errors.js';
 
-const SCREENS = ['loading', 'title', 'main', 'mode', 'loadout', 'setup', 'locker', 'settings', 'howto', 'credits', 'pause', 'results', 'online', 'lobby'];
+const SCREENS = ['loading', 'title', 'main', 'mode', 'loadout', 'setup', 'locker', 'settings', 'howto', 'credits', 'pause', 'results', 'online', 'lobby', 'pad'];
 // Transitions that get the full-screen ink wipe (the rest use staggered pop-ins).
 const WIPES = new Set(['loading>title', 'title>main', 'results>main', 'pause>main', 'results>null', 'pause>title', 'online>lobby', 'lobby>online', 'lobby>main', 'results>lobby', 'pause>online']);
 // Pushes/pops between these get the light ink swipe (decorative — the swap itself is immediate).
@@ -1034,6 +1034,8 @@ export class Menus {
     const lpSeg = this._seg([[1, '1P'], [2, '2P'], [3, '3P'], [4, '4P']], lpVal, (v) => this._setSetting('localPlayers', v));
     const tmVal = s.localTeams === 'team' ? 'team' : 'split';
     const tmSeg = this._seg([['split', t('SPLIT')], ['team', t('TOGETHER')]], tmVal, (v) => this._setSetting('localTeams', v));
+    const padBtn = h('button', { class: 'iw-modesel__padbtn' }, h('i', { html: GLYPHS.online }), t('PHONE PAD'));
+    this._bind(padBtn, { id: 'pad-open', accept: () => { this._sfx('ui_click'); this._go('pad'); } });
     const el = h('div', { class: 'iw-screen iw-modesel' },
       bg, h('div', { class: 'iw-ss__scrim' }),
       this._header('PLAY', { sub: 'Choose a mode · you and the bots' }),
@@ -1043,6 +1045,7 @@ export class Menus {
         lpSeg.el,
         h('span', { class: 'iw-modesel__teamslbl' }, h('i', { html: GLYPHS.swords }), t('LOCAL TEAMS')),
         tmSeg.el,
+        padBtn,
         h('span', { class: 'iw-modesel__playersnote' }, t('P1: keyboard & mouse · P2–P4: gamepad · Boss Battle is solo'))),
       this._prompts([[['←', '→'], 'DPad', 'Mode'], ['Enter', 'A', 'Select'], ['Esc', 'B', 'Back']]));
     el.dataset.mode = cur;
@@ -1053,6 +1056,95 @@ export class Menus {
       onFocus: (f) => { if (f && f._mode && f._mode !== el.dataset.mode) { el.dataset.mode = f._mode; setBg(f._mode); } },
       onNav: (dir) => this._graphNav(graph, dir),
     };
+  }
+
+  // ================================================================ SCREEN: pad (phone-as-pad over the LAN)
+  _scr_pad() {
+    const game = window.__inkwave;
+    const qrUrl = () => 'http://' + (this._padHost() || 'PC-LAN-IP') + ':' + (game?.padPort || 13000) + '/pad?room=' + (game?.padCode || '');
+    const el = h('div', { class: 'iw-screen iw-padmenu' },
+      h('div', { class: 'iw-ss__bg' }), h('div', { class: 'iw-ss__scrim' }),
+      this._header('PHONE PAD', { sub: t('PHONE PAD SUB') }),
+      h('div', { class: 'iw-pad__card iw-in iw-in--up' },
+        h('div', { class: 'iw-pad__left' },
+          h('span', { class: 'iw-pad__lbl' }, t('ROOM CODE')),
+          h('div', { class: 'iw-pad__coderow' },
+            h('span', { class: 'iw-pad__code' }, game?.padCode || '····'),
+            h('button', { class: 'iw-pad__newcode' }, t('NEW CODE'))),
+          h('canvas', { class: 'iw-pad__qr', width: 208, height: 208 }),
+          h('div', { class: 'iw-pad__addr' })),
+        h('div', { class: 'iw-pad__right' },
+          h('span', { class: 'iw-pad__lbl' }, t('PHONES')),
+          h('div', { class: 'iw-pad__status' }),
+          h('div', { class: 'iw-pad__slots' }),
+          h('p', { class: 'iw-pad__note' }, t('PHONE PAD NOTE')))));
+    const codeEl = el.querySelector('.iw-pad__code');
+    const qrEl = el.querySelector('.iw-pad__qr');
+    const addrEl = el.querySelector('.iw-pad__addr');
+    const statusEl = el.querySelector('.iw-pad__status');
+    const slotsEl = el.querySelector('.iw-pad__slots');
+    const newBtn = el.querySelector('.iw-pad__newcode');
+    this._bind(newBtn, { id: 'pad-newcode', accept: () => {
+      if (!game) return;
+      this._sfx('ui_click');
+      game.padCode = game._newPadCode();
+      game.padLink.close();
+      game._padEnsure();
+      codeEl.textContent = game.padCode;
+      this._renderPadQr(qrEl, qrUrl());
+      this._renderPadAddr(addrEl, game, qrUrl());
+    } });
+    const renderDevices = () => {
+      if (!game || !document.body.contains(el)) return;      const link = game.padLink;
+      const ok = !!(link && link.open);
+      statusEl.textContent = t(ok ? 'PAD ONLINE' : 'PAD OFFLINE');
+      statusEl.classList.toggle('is-ok', ok);
+      slotsEl.innerHTML = '';
+      for (let slot = 2; slot <= 4; slot++) {
+        const dev = [...(game.padDevices?.values() || [])].find((d) => d.slot === slot);
+        slotsEl.appendChild(h('div', { class: 'iw-pad__slot' },
+          h('span', { class: 'iw-pad__slotn' }, 'P' + slot),
+          dev
+            ? h('span', { class: 'iw-pad__slotname is-on' }, h('i', { html: GLYPHS.online }), dev.name)
+            : h('span', { class: 'iw-pad__slotname' }, t('NO PHONE'))));
+      }
+    };
+    if (game) game._padEnsure();
+    this._renderPadAddr(addrEl, game, qrUrl());
+    this._renderPadQr(qrEl, qrUrl());
+    renderDevices();
+    const iv = setInterval(() => { if (!document.body.contains(el)) { clearInterval(iv); return; } renderDevices(); }, 800);
+    return {
+      el,
+      initial: newBtn,
+      onBack: () => { this._sfx('ui_back'); this.show('mode', { back: true }); },
+      onKey: (e) => { if (e.key === 'Escape' || e.key === 'Backspace') { this._sfx('ui_back'); this.show('mode', { back: true }); return true; } return false; },
+    };
+  }
+  _padHost() {
+    const game = window.__inkwave;
+    const ips = game?.padIps || [];
+    const ip = ips.find((x) => x && (x.ip || typeof x === 'string'))?.ip || (typeof ips[0] === 'string' ? ips[0] : '');
+    return ip || '';
+  }
+  _renderPadAddr(el, game, url) {
+    el.innerHTML = '';
+    const ips = game?.padIps || [];
+    const hosts = ips.length ? ips.map((x) => x.ip || x) : [];
+    const addrs = hosts.length ? hosts.map((h) => `http://${h}:${game?.padPort || 13000}/pad?room=${game?.padCode || ''}`) : [url];
+    for (const a of addrs) el.appendChild(h('div', { class: 'iw-pad__addrline' }, a));
+  }
+  async _renderPadQr(el, url) {
+    try {
+      const mod = await import('../../vendor/qrcode/qrcode.mjs');
+      const qrcode = mod.default || mod;
+      const qr = qrcode(0, 'M');
+      qr.addData(url, 'Byte');
+      qr.make();
+      const img = new Image();
+      img.onload = () => { try { const c = el.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, el.width, el.height); c.drawImage(img, 4, 4, el.width - 8, el.height - 8); } catch { /* ignore */ } };
+      img.src = qr.createDataURL(4, 3);
+    } catch (e) { console.warn('[menus] qr', e); }
   }
 
   // ================================================================ SCREEN: setup (stage select)

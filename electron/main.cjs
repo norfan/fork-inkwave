@@ -4,6 +4,7 @@ const { app, BrowserWindow, Menu, protocol, net, shell, powerSaveBlocker, ipcMai
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+const { PadRelay } = require('./pad-relay.cjs');
 
 const ROOT = path.join(__dirname, '..');
 
@@ -20,7 +21,7 @@ const CSP = [
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
   "media-src 'self' data: blob:",
-  "connect-src 'self' data: blob:",
+  "connect-src 'self' data: blob: ws://127.0.0.1:* ws://localhost:*",   // + ws for the phone-as-pad LAN relay
   "worker-src 'self' blob:",
 ].join('; ');
 
@@ -135,7 +136,21 @@ function buildMenu() {
   ]));
 }
 
-app.whenReady().then(() => {
+// LAN phone-as-pad relay (pad.html + WebSocket rooms on one port). Started once, lives for the whole app;
+// non-fatal: if the port is taken the game still runs, the PHONE PAD screen just shows an offline state.
+let padRelay = null;
+let padPort = 13000;
+app.whenReady().then(async () => {
+  try {
+    padRelay = new PadRelay({ port: padPort, root: ROOT });
+    padPort = await padRelay.start();
+  } catch (e) {
+    console.error('[inkwave] pad relay unavailable:', e.message);
+    padRelay = null;
+  }
+  ipcMain.removeAllListeners('pad:port'); ipcMain.removeAllListeners('pad:ips');
+  ipcMain.on('pad:port', (e) => { e.returnValue = padRelay ? padPort : 0; });
+  ipcMain.handle('pad:ips', () => (padRelay ? padRelay.ips : []));
   nativeTheme.themeSource = 'dark';
   protocol.handle('app', async (req) => {
     const { pathname } = new URL(req.url);

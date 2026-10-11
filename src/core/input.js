@@ -82,7 +82,41 @@ export class Input {
   down(code) { return this.keys.has(code); }
   wasPressed(code) { return this.pressed.has(code); }
 
+  // Phone-as-pad: a virtual gamepad fed over the LAN by pad.html (see src/net/padlink.js + electron/pad-relay.cjs).
+  // Shape: { lx, ly, ax, ay (sticks, -1..1), fire, jump, sub, special, squid, map (0..1 / bool) }.
+  // While set, the virtual pad outranks any physical pad on this slot; clear with setVirtual(null) to fall back.
+  setVirtual(v) {
+    if (!v) { this.virtual = null; return; }
+    const f = (n) => Math.max(-1, Math.min(1, +n || 0));
+    this.virtual = {
+      lx: f(v.lx), ly: f(v.ly), ax: f(v.ax), ay: f(v.ay),
+      fire: f(v.fire), jump: f(v.jump), sub: f(v.sub), special: f(v.special), squid: f(v.squid), map: f(v.map),
+    };
+    this.lastDevice = 'pad';
+  }
+
   pollPad() {
+    // A phone bound to this slot supplies a synthetic standard pad (button indices match the Xbox layout the
+    // game already reads: 0 A=jump, 3 Y=special, 5 RB=sub, 6 LT=squid, 7 RT=fire, 8 = map; axes 0/1 move, 2/3 aim).
+    if (this.virtual) {
+      const v = this.virtual;
+      const btns = [];
+      for (let i = 0; i < 12; i++) btns.push({ pressed: false, value: 0 });
+      btns[0] = { pressed: v.jump > 0.3, value: v.jump };
+      btns[3] = { pressed: v.special > 0.3, value: v.special };
+      btns[5] = { pressed: v.sub > 0.3, value: v.sub };
+      btns[6] = { pressed: v.squid > 0.3, value: v.squid };
+      btns[7] = { pressed: v.fire > 0.3, value: v.fire };
+      btns[8] = { pressed: v.map > 0.3, value: v.map };
+      this.pad = { connected: true, mapping: 'standard', axes: [v.lx, v.ly, v.ax, v.ay], buttons: btns, virtual: true };
+      this.padPressed.clear();
+      btns.forEach((b, i) => {
+        const was = this.padPrev[i] || false;
+        if (b.pressed && !was) { this.padPressed.add(i); this.lastDevice = 'pad'; }
+        this.padPrev[i] = b.pressed;
+      });
+      return;
+    }
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     let pad = null;
     // this slot's pad first (split-screen: every Input owns its own slot); slot 0 keeps the legacy

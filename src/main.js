@@ -29,6 +29,7 @@ import { Minimap } from './game/minimap.js';
 import { Showcase } from './game/showcase.js';
 import { ZoneMarks } from './fx/zoneMarks.js';
 import { BOSS_MODE } from './boss/bossMode.js';
+import { PadLink } from './net/padlink.js';
 import { setLang, t } from './i18n/strings.js';
 
 const params = new URLSearchParams(location.search);
@@ -71,6 +72,13 @@ class Game {
     if (WEAPON_SUCCESSOR[this.profile.weapon]) this.profile.weapon = WEAPON_SUCCESSOR[this.profile.weapon];   // retired weapons
     // local split-screen count (?localplayers=2|3|4 — Mario Kart style, 1 = the usual single-player screen)
     this.local4pN = Math.max(1, Math.min(4, +(params.get('localplayers') || 1) || 1));
+    // phone-as-pad over the LAN: the big screen owns the room, phones stream input into local inputs (pad.html)
+    this.padLink = new PadLink();
+    this.padCode = this._newPadCode();
+    this.padDevices = new Map();      // device id → { slot, name, id }   (slot 2..4 = P2..P4)
+    this.padLast = new Map();         // device id → last input snapshot (reapplied after a match starts)
+    this.padIps = window.inkwaveNative ? [] : (location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? [] : [{ name: 'LAN', ip: location.hostname }]);
+    this._padBoot();
     const app = document.getElementById('app');
     this.uiRoot = document.getElementById('ui-root');
     this.fadeEl = document.getElementById('fade');
@@ -490,13 +498,85 @@ class Game {
     const want = params.has('localplayers') ? this.local4pN : (this.settings.localPlayers || 1);
     return Math.max(1, Math.min(4, (opts.localPlayers || want) | 0));
   }
+
+  // ----------------------------------------------------------------------------------- phone-as-pad (LAN)
+  _newPadCode() {
+    const ABC = 'BCEFGHJKLMNPQRTUVXYZ23456789';   // no O/0/I/1, no W/A/S/D (menu keys)
+    let c = '';
+    for (let i = 0; i < 4; i++) c += ABC[Math.floor(Math.random() * ABC.length)];
+    return c;
+  }
+  // Desktop app: pull the relay port + LAN IPs from the native shell. Plain web: the relay must be started
+  // separately (tools/serve-pad.mjs) and is reachable on this machine as 127.0.0.1:13000.
+  async _padBoot() {
+    if (window.inkwaveNative) {
+      const port = window.inkwaveNative.padPort();
+      this.padPort = port || 13000;
+      try { this.padIps = (await window.inkwaveNative.padIps()) || []; } catch { this.padIps = []; }
+    } else {
+      this.padPort = 13000;
+    }
+    this.padLink.onMessage = (from, o) => this._padOnMessage(from, o);
+    this.padLink.onClose = () => { for (const [, d] of this.padDevices) this._padClearSlot(d.slot); this.padDevices.clear(); };
+  }
+  async _padEnsure() {
+    if (this.padLink.open) return true;
+    if (!this.padPort) return false;
+    try {
+      await this.padLink.connect(this.padCode, this.profile.name || 'Host', { addr: `127.0.0.1:${this.padPort}` });
+      return true;
+    } catch (e) { console.warn('[inkwave] pad relay:', e?.message); return false; }
+  }
+  _padOnMessage(from, o) {
+    if (o.t === 'padjoin') {
+      if (!this.padDevices.has(o.device)) {
+        const slot = [2, 3, 4].find((s) => ![...this.padDevices.values()].some((d) => d.slot === s));
+        if (!slot) return;   // all phone seats taken
+        this.padDevices.set(o.device, { slot, name: (o.name || 'Phone').slice(0, 12), id: from });
+        this.padLink.sendTo(from, { t: 'padseat', slot });
+        G.audio?.play?.('ui_confirm');
+      } else {
+        this.padLink.sendTo(from, { t: 'padseat', slot: this.padDevices.get(o.device).slot });   // re-join reclaims its seat
+      }
+      return;
+    }
+    if (o.t === 'padinput') {
+      const d = this.padDevices.get(o.device);
+      if (!d) return;
+      this.padLast.set(o.device, o.d || null);
+      const inp = (this.localInputs || [this.input])[d.slot - 1];
+      inp?.setVirtual(o.d);
+      return;
+    }
+    if (o.t === 'padleave' || o.t === 'leave') {   // relay broadcasts {t:'leave', id}; keep 'padleave' for compat
+      let dev = this.padDevices.get(o.device);
+      if (!dev && o.id) {
+        const hit = [...this.padDevices.entries()].find(([, d]) => d.id === o.id);
+        if (hit) { this.padDevices.delete(hit[0]); this.padLast.delete(hit[0]); this._padClearSlot(hit[1].slot); }
+        return;
+      }
+      if (dev) { this.padDevices.delete(o.device); this.padLast.delete(o.device); this._padClearSlot(dev.slot); }
+    }
+  }
+  _padClearSlot(slot) {
+    (this.localInputs || [this.input])[slot - 1]?.setVirtual(null);
+  }
+  // after _beginLocal4P builds the per-player inputs, re-seat any phone that connected while in the menus
+  _padSyncVirtuals() {
+    for (const [device, d] of this.padLast) {
+      const seat = this.padDevices.get(device);
+      if (seat) (this.localInputs || [this.input])[seat.slot - 1]?.setVirtual(d);
+    }
+  }
+
   async _beginLocal4P(n) {
     this._endLocal4P(false);
-    if (n <= 1) { this.localRigs = [this.rig]; this.localInputs = [this.input]; return; }
+    if (n <= 1) { this.localRigs = [this.rig]; this.localInputs = [this.input]; this._padSyncVirtuals(); return; }
     this.R.setLocal4P(n);
     const canvas = this.R.renderer.domElement;
     this.localInputs = [this.input];
     for (let i = 1; i < n; i++) this.localInputs.push(new Input(canvas, { padIndex: i, useKeyboard: false }));
+    this._padSyncVirtuals();
     this.localRigs = [this.rig];
     for (let i = 1; i < n; i++) {
       const cam = new THREE.PerspectiveCamera(70, 16 / 9, 0.15, 6500);
