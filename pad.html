@@ -31,39 +31,47 @@
   #stickR { right: 7vw; bottom: 20vh; }
   #stickR::after { background: rgba(127,212,255,.35); }
   #stickR .knob { background: #7fd4ff; }
-  .btn { position: absolute; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255,255,255,.10); border: 2px solid rgba(255,255,255,.38); color: #fff; font: 800 12px/1 'Segoe UI', sans-serif; letter-spacing: 1px; touch-action: none; }
+  .btn { position: absolute; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255,255,255,.10); border: 2px solid rgba(255,255,255,.38); color: #fff; font: 800 12px/1 'Segoe UI', system-ui, sans-serif; letter-spacing: 1px; touch-action: none; }
   .btn:active, .btn.on { background: rgba(255,138,20,.75); border-color: #ff8a14; }
-  #btnFire { right: 9vw; bottom: 6vh; width: 24vw; height: 24vw; max-width: 140px; max-height: 140px; font-size: 16px; background: rgba(255,138,20,.28); border-color: rgba(255,138,20,.65); }
-  #btnJump { right: 20vw; bottom: 26vh; width: 13vw; height: 13vw; max-width: 78px; max-height: 78px; }
-  #btnSub { right: 40vw; bottom: 14vh; width: 13vw; height: 13vw; max-width: 78px; max-height: 78px; }
-  #btnSpecial { right: 55vw; bottom: 34vh; width: 13vw; height: 13vw; max-width: 78px; max-height: 78px; }
-  #btnSquid { right: 58vw; bottom: 16vh; width: 15vw; height: 15vw; max-width: 88px; max-height: 88px; }
+  /* right stick keeps the bottom-right corner; the action buttons sit clear of it */
+  #btnFire { right: 51vw; bottom: 2vh; width: 24vw; height: 24vw; max-width: 140px; max-height: 140px; font-size: 16px; background: rgba(255,138,20,.28); border-color: rgba(255,138,20,.65); }
+  #btnJump { right: 16vw; bottom: 71vh; width: 13vw; height: 13vw; max-width: 78px; max-height: 78px; }
+  #btnSub { right: 58vw; bottom: 40vh; width: 13vw; height: 13vw; max-width: 78px; max-height: 78px; }
+  #btnSpecial { right: 48vw; bottom: 40vh; width: 13vw; height: 13vw; max-width: 78px; max-height: 78px; }
+  #btnSquid { right: 37vw; bottom: 40vh; width: 15vw; height: 15vw; max-width: 88px; max-height: 88px; }
   #btnMap { right: 6vw; top: 9vh; width: 11vw; height: 11vw; max-width: 66px; max-height: 66px; }
+  @media (max-width: 760px) {
+    .stick { max-width: 150px; max-height: 150px; }
+    #btnFire { max-width: 112px; max-height: 112px; font-size: 14px; }
+    #btnJump, #btnSub, #btnSpecial { max-width: 62px; max-height: 62px; }
+    #btnSquid { max-width: 70px; max-height: 70px; }
+    #btnMap { max-width: 54px; max-height: 54px; }
+  }
   #hud { display: none; }
   #hud.on { display: block; }
 </style>
 </head>
 <body>
-<div id="rot">Please rotate your phone to landscape to play ↻</div>
+<div id="rot">请横屏使用手柄 ↻</div>
 <div id="code-card">
-  <div class="t">INKWAVE · PHONE PAD</div>
-  <div class="s">Enter the 4-character room code shown on the game's PHONE PAD screen.</div>
-  <a id="dl" href="/inkwave-pad.apk">⬇ DOWNLOAD PAD APP<small>Free app · no manual address typing</small></a>
-  <input id="code" maxlength="8" placeholder="ROOM" autocomplete="off" autocapitalize="characters" spellcheck="false">
-  <button id="join">CONNECT</button>
+  <div class="t">INKWAVE · 手机手柄</div>
+  <div class="s">请输入大屏 PHONE PAD 界面显示的 4 位房间号。</div>
+  <a id="dl" href="/inkwave-pad.apk">⬇ 下载手柄 APP<small>免费 App · 免手动输入地址</small></a>
+  <input id="code" maxlength="8" placeholder="房间号" autocomplete="off" autocapitalize="characters" spellcheck="false">
+  <button id="join">连接</button>
   <div class="err" id="err"></div>
 </div>
 <div id="hud">
   <div id="status"></div>
-  <a id="dl-bar" href="/inkwave-pad.apk">⬇ DOWNLOAD PAD APP</a>
+  <a id="dl-bar" href="/inkwave-pad.apk">⬇ 下载手柄 APP</a>
   <div id="stickL" class="stick"><div class="knob"></div></div>
   <div id="stickR" class="stick"><div class="knob"></div></div>
-  <div id="btnFire" class="btn">FIRE</div>
-  <div id="btnJump" class="btn">JUMP</div>
-  <div id="btnSub" class="btn">SUB</div>
-  <div id="btnSpecial" class="btn">SPECIAL</div>
-  <div id="btnSquid" class="btn">SQUID</div>
-  <div id="btnMap" class="btn">MAP</div>
+  <div id="btnFire" class="btn">开火</div>
+  <div id="btnJump" class="btn">跳跃</div>
+  <div id="btnSub" class="btn">副武器</div>
+  <div id="btnSpecial" class="btn">大招</div>
+  <div id="btnSquid" class="btn">墨鱼</div>
+  <div id="btnMap" class="btn">地图</div>
 </div>
 <script>
 (() => {
@@ -196,7 +204,7 @@
 
   function join() {
     const room = (ROOM || $('code').value || '').trim().toUpperCase();
-    if (!room) { errEl.textContent = 'Enter the room code from the big screen.'; return; }
+    if (!room) { errEl.textContent = '请输入大屏显示的房间号。'; return; }
     errEl = $('err');
     statusEl = $('status');
     errEl.textContent = '';
