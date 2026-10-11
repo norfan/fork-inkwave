@@ -34,15 +34,23 @@ const MIME = {
   '.woff2': 'font/woff2',
 };
 
+// LAN IPs shown to the user (pairing screen, QR host, room links). Virtual adapters
+// (VMware / VirtualBox / Hyper-V vEthernet / Docker / WSL / VPN tunnels) and link-local
+// APIPA addresses are useless for a phone on the same Wi-Fi, so only real Ethernet/Wi-Fi
+// adapters are listed — falling back to the raw list when nothing real exists.
+const VIRTUAL_IF = /VMware|VMnet|VirtualBox|vEthernet|Hyper-?V|Loopback|Docker|WSL|Tailscale|ZeroTier|Hamachi|tun|tap|br-|veth/i;
+const APIPA_IP = /^169\.254\./;
 function lanIPs() {
-  const out = [];
+  const real = [], virt = [];
   const ifs = require('node:os').networkInterfaces();
   for (const name of Object.keys(ifs)) {
     for (const a of ifs[name] || []) {
-      if (a.family === 'IPv4' && !a.internal) out.push({ name, ip: a.address });
+      if (a.family === 'IPv4' && !a.internal) {
+        (APIPA_IP.test(a.address) || VIRTUAL_IF.test(name) ? virt : real).push({ name, ip: a.address });
+      }
     }
   }
-  return out;
+  return real.length ? real : virt;   // only virtual adapters when no real one exists
 }
 
 // ---- minimal RFC6455 server ----

@@ -16,6 +16,11 @@
   #code-card input:focus { border-color: #ff8a14; }
   #code-card button { width: min(320px, 80vw); padding: 14px; font: 800 18px/1 'Segoe UI', sans-serif; letter-spacing: 2px; background: #ff8a14; color: #10131f; border: 0; border-radius: 12px; }
   #code-card .err { color: #f87171; font-size: 13px; min-height: 18px; }
+  #dl { width: min(320px, 80vw); padding: 12px 14px; font: 800 16px/1 'Segoe UI', sans-serif; letter-spacing: 1px; text-align: center; background: rgba(255,138,20,.16); color: #ffb45e; border: 2px solid #ff8a14; border-radius: 12px; text-decoration: none; display: none; }
+  #dl.on { display: block; }
+  #dl small { display: block; margin-top: 6px; font: 500 12px/1.3 'Segoe UI', sans-serif; color: #8b92a8; letter-spacing: 0; }
+  #dl-bar { display: none; position: fixed; top: 44px; left: 0; right: 0; z-index: 21; margin: 0 auto; width: fit-content; max-width: 92vw; padding: 9px 16px; font: 800 13px/1 'Segoe UI', sans-serif; letter-spacing: 1px; text-align: center; background: rgba(255,138,20,.22); color: #ffd9a8; border: 1px solid rgba(255,138,20,.7); border-radius: 20px; text-decoration: none; }
+  #dl-bar.on { display: block; }
   #status { position: fixed; top: 8px; left: 0; right: 0; z-index: 20; display: flex; justify-content: center; gap: 12px; font: 700 12px/1.2 'Segoe UI', sans-serif; letter-spacing: 1px; pointer-events: none; }
   #status b { background: rgba(0,0,0,.55); padding: 6px 10px; border-radius: 20px; white-space: nowrap; }
   #status .ok { color: #5ef29a; } #status .bad { color: #ffb454; } #status .seat { color: #7fd4ff; }
@@ -43,12 +48,14 @@
 <div id="code-card">
   <div class="t">INKWAVE · PHONE PAD</div>
   <div class="s">Enter the 4-character room code shown on the game's PHONE PAD screen.</div>
+  <a id="dl" href="/inkwave-pad.apk">⬇ DOWNLOAD PAD APP<small>Free app · no manual address typing</small></a>
   <input id="code" maxlength="8" placeholder="ROOM" autocomplete="off" autocapitalize="characters" spellcheck="false">
   <button id="join">CONNECT</button>
   <div class="err" id="err"></div>
 </div>
 <div id="hud">
   <div id="status"></div>
+  <a id="dl-bar" href="/inkwave-pad.apk">⬇ DOWNLOAD PAD APP</a>
   <div id="stickL" class="stick"><div class="knob"></div></div>
   <div id="stickR" class="stick"><div class="knob"></div></div>
   <div id="btnFire" class="btn">FIRE</div>
@@ -63,11 +70,21 @@
   'use strict';
   const $ = (id) => document.getElementById(id);
   const ROOM = new URLSearchParams(location.search).get('room') || '';
+  // inside the Android pad app the URL carries ?apk=<version>; a plain browser (e.g. the one
+  // opened by the pairing QR code) doesn't, so show the APK download entry there only.
+  const IN_APP = !!new URLSearchParams(location.search).get('apk');
   const DEVICE_KEY = 'inkwave_pad_device';
   let device = ''; try { device = localStorage.getItem(DEVICE_KEY) || ''; } catch {}
   if (!device) { device = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); try { localStorage.setItem(DEVICE_KEY, device); } catch {} }
   const state = { lx: 0, ly: 0, ax: 0, ay: 0, fire: 0, jump: 0, sub: 0, special: 0, squid: 0, map: 0 };
   let ws = null, seat = 0, statusEl = null, errEl = null, retry = 0, retryT = null, curRoom = '';
+
+  // ---- "you're in a browser, not the app yet" download entry ----
+  if (!IN_APP) {
+    const dl = $('dl'), dlBar = $('dl-bar');
+    dl.classList.add('on');
+    window.__padShowDownloadBar = () => dlBar.classList.add('on');   // join() surfaces it on the HUD
+  }
 
   // ---- portrait guard ----
   const mq = window.matchMedia('(orientation: portrait)');
@@ -183,6 +200,7 @@
     errEl = $('err');
     statusEl = $('status');
     errEl.textContent = '';
+    if (!IN_APP && window.__padShowDownloadBar) window.__padShowDownloadBar();
     $('code-card').style.display = 'none';
     $('hud').classList.add('on');
     connect(room);
