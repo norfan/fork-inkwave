@@ -371,7 +371,12 @@ class Game {
         const p = self.profile;
         return { ...p, played: p.matches, xpToNext: PROGRESSION.xpForLevel(p.level) };
       },
-      setProfileName: (n) => { self.profile.name = String(n || 'Player').slice(0, 16); saveJSON('inkwave.profile', self.profile); },
+      setProfileName: (n, idx = 0) => {
+        n = String(n || 'Player').slice(0, 16);
+        if (idx) { self._localProfile(idx).name = n; self._saveLocalProfiles(); return; }
+        self.profile.name = n; saveJSON('inkwave.profile', self.profile);
+      },
+      getProfileName: (idx = 0) => (idx ? (self._localProfile(idx).name || `Player ${idx + 1}`) : (self.profile.name || 'Player')),
       // locker look ({ hair, skin, outfit, eyes, hat, brows, … } — indices into character-style.js tables); idx = local player (0 = P1 profile)
       setProfileStyle: (st, idx = 0) => {
         if (idx) { self._localProfile(idx).style = { ...(st || {}) }; self._saveLocalProfiles(); return; }
@@ -433,7 +438,7 @@ class Game {
   _localProfile(idx) {
     if (!idx) return this.profile;
     if (!Array.isArray(this.localProfiles)) this.localProfiles = [];
-    if (!this.localProfiles[idx]) this.localProfiles[idx] = { weapon: null, sub: null, special: null, style: null };
+    if (!this.localProfiles[idx]) this.localProfiles[idx] = { weapon: null, sub: null, special: null, style: null, name: null };
     return this.localProfiles[idx];
   }
   _saveLocalProfiles() { saveJSON('inkwave.localProfiles', this.localProfiles); }
@@ -935,14 +940,14 @@ class Game {
     await this._beginLocal4P(localN);
     const kits = localN > 1 ? Array.from({ length: localN }, (_, li) => {
       const lp = this._localProfile(li);
-      return { weapon: lp.weapon || null, sub: lp.sub || null, special: lp.special || null, style: lp.style || null };
+      return { weapon: lp.weapon || null, sub: lp.sub || null, special: lp.special || null, style: lp.style || null, name: li ? (lp.name || null) : null };
     }) : null;
     const m = (this.match = G.match = new Match({
       attract: false, practice, duration: opts.duration, mode: opts.mode, difficulty: opts.difficulty, weapon: this.profile.weapon || 'shooter', sub: this._subFor(this.profile.weapon), special: this._specialFor(this.profile.weapon),
       playerName: this.profile.name || 'Player', CharacterClass: this.CharacterClass, rig: this.rig, input: this.input,
       rigs: this.localRigs, inputs: this.localInputs, localPlayers: localN,
       subs: kits?.map((k) => k.sub) ?? null, specials: kits?.map((k) => k.special) ?? null,
-      styles: kits?.map((k) => k.style) ?? null, weapons: kits?.map((k) => k.weapon) ?? null,
+      styles: kits?.map((k) => k.style) ?? null, weapons: kits?.map((k) => k.weapon) ?? null, names: kits?.map((k) => k.name) ?? null,
       localTeamMode: params.get('localteams') || this.settings.localTeams || 'split',   // PLAY screen: all locals on one team vs bots ('split') or dealt across teams ('team')
       autopilot: params.has('autopilot'), style: this.profile.style || null, noBots: mapNoBots(map.id),   // (devstage: a solo walk)
     }));

@@ -1596,11 +1596,10 @@ export class Menus {
    *   saved derive from the name hash, so the locker shows the same kid you play as). idx = local player (0 = P1). */
   _style(idx = 0) {
     if (!this._styleCache) this._styleCache = {};
-    const p = this._profile();
     let raw = null;
     try { raw = this.api.getProfileStyle && this.api.getProfileStyle(idx); } catch (e) { raw = null; }
-    if (!raw || typeof raw !== 'object') raw = p.style && typeof p.style === 'object' ? p.style : (this._styleCache[idx || 0] || {});
-    const seed = idx ? `Player ${idx + 1}` : (p.name || 'Player');
+    if (!raw || typeof raw !== 'object') raw = this._styleCache[idx || 0] || {};
+    const seed = idx ? (safeCall(() => this.api.getProfileName && this.api.getProfileName(idx)) || `Player ${idx + 1}`) : (this._profile().name || 'Player');
     try { return LOOK.resolveStyle({ ...raw }, fnv(seed)); } catch (e) { return { ...raw }; }
   }
   _saveStyle(style, idx = 0) {
@@ -1628,11 +1627,12 @@ export class Menus {
     };
   }
 
-  /** Squidkid name field (Enter/click to edit, Esc cancels, blank names are refused). */
-  _nameRow() {
+  /** Squidkid name field (Enter/click to edit, Esc cancels, blank names are refused). pIdx > 0 edits that local player's own name. */
+  _nameRow(pIdx = 0) {
     const prof = this._profile();
-    const input = h('input', { class: 'iw-name__input', type: 'text', maxlength: '16', spellcheck: 'false', autocomplete: 'off', value: prof.name });
-    input.dataset.orig = prof.name;
+    const cur = pIdx ? (safeCall(() => this.api.getProfileName && this.api.getProfileName(pIdx)) || `Player ${pIdx + 1}`) : prof.name;
+    const input = h('input', { class: 'iw-name__input', type: 'text', maxlength: '16', spellcheck: 'false', autocomplete: 'off', value: cur });
+    input.dataset.orig = cur;
     const nameRow = h('div', { class: 'iw-name iw-in' },
       h('span', { class: 'iw-name__label' }, 'NAME'),
       h('span', { class: 'iw-name__field' }, input, h('i', { class: 'iw-name__pen', html: GLYPHS.pencil })));
@@ -1643,7 +1643,7 @@ export class Menus {
       if (!v) { input.value = input.dataset.orig; this._sfx('ui_error'); restartAnim(nameRow, 'is-shake'); return; }
       input.value = v;
       if (v !== input.dataset.orig) {
-        input.dataset.orig = v; safeCall(() => this.api.setProfileName && this.api.setProfileName(v)); this._sfx('ui_confirm'); restartAnim(nameRow, 'is-saved');
+        input.dataset.orig = v; safeCall(() => this.api.setProfileName && this.api.setProfileName(v, pIdx)); this._sfx('ui_confirm'); restartAnim(nameRow, 'is-saved');
         if (nameRow._onChange) nameRow._onChange(v);
       }
     };
@@ -1674,7 +1674,7 @@ export class Menus {
     const teamColor = () => (G.teamColors && G.teamColors[0]) || this._accent()[0];
     const reduced = prefersReducedMotion();
 
-    const nameRow = this._nameRow();
+    const nameRow = this._nameRow(pIdx);
 
     // ---- tabs
     const tabsEl = h('div', { class: 'iw-tabs iw-ltabs' });

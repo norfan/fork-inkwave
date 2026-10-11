@@ -81,7 +81,7 @@ export class Match {
         const special = isLocal ? (o.specials?.[li] ?? (li === 0 ? o.special : null)) : Math.random() < 0.5 ? null : SPECIAL_ORDER[(Math.random() * SPECIAL_ORDER.length) | 0];
         const a = new Actor({
           team, slot: s, weapon: weapons[s], sub, special, isLocal, isBot: !isLocal,
-          name: isLocal ? (li === 0 ? (o.playerName || 'You') : `Player ${li + 1}`) : names[ni++ % names.length],
+          name: isLocal ? (li === 0 ? (o.playerName || 'You') : (o.names?.[li] || `Player ${li + 1}`)) : names[ni++ % names.length],
           // your look from the Locker (an empty style resolves from your name); other locals + bots get random looks
           style: isLocal ? (o.styles?.[li] ?? (li === 0 ? { ...(o.style || {}) } : randomStyle())) : randomStyle(), CharacterClass,
         });

@@ -147,8 +147,10 @@ class PadRelay {
   roomCount() { return this.rooms.size; }
 
   _file(urlPath) {
-    // serve /pad (controller page) + its static assets + the pad APK from the project root; everything else 404s
-    let p = urlPath === '/' || urlPath === '/pad' ? 'pad.html'
+    // serve the game main page at / (browser play), /pad (controller page) + its static
+    // assets and the pad APK from the project root; anything else resolves relative to the root.
+    let p = urlPath === '/' ? 'index.html'
+      : urlPath === '/pad' ? 'pad.html'
       : urlPath === '/inkwave-pad.apk' ? 'inkwave-pad.apk'
       : decodeURIComponent(urlPath).replace(/^\/+/, '');
     if (p.includes('..') || p.includes('\0')) return null;
