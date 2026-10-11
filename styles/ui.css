@@ -1597,7 +1597,7 @@ circle.iw-ico-cut { fill: var(--cut, #fff); }
 
 /* ---- our additions on top of upstream's stage select / loadout ----------------------------------------------------- */
 /* 4+ stages: slim tickets in a scrolling column (upstream's layout is sized for three) */
-.iw-ss__list.is-many { max-height: calc(var(--u) * 31); gap: calc(var(--u) * .55); overflow-y: auto; overflow-x: hidden; scrollbar-width: none; padding-left: calc(var(--u) * .3); }
+.iw-ss__list.is-many { max-height: calc(var(--u) * 22); gap: calc(var(--u) * .55); overflow-y: auto; overflow-x: hidden; scrollbar-width: none; padding-left: calc(var(--u) * .3); }
 .iw-ss__list.is-many::-webkit-scrollbar { display: none; }
 .iw-ss__list.is-many .iw-ticket { height: calc(var(--u) * 3.9); border-radius: calc(var(--u) * .9); }
 .iw-ss__list.is-many .iw-ticket__num { width: calc(var(--u) * 2.2); height: calc(var(--u) * 2.2); font-size: calc(var(--u) * .9); left: calc(var(--u) * .7); }
@@ -2826,6 +2826,7 @@ circle.iw-ico-cut { fill: var(--cut, #fff); }
 .iw-pad__qr { width: calc(var(--u) * 13); height: calc(var(--u) * 13); min-width: 180px; min-height: 180px; background: #fff; border-radius: calc(var(--u) * .6); padding: calc(var(--u) * .3); margin-bottom: calc(var(--u) * 1.4); }
 .iw-pad__addr { display: flex; flex-direction: column; gap: calc(var(--u) * .5); }
 .iw-pad__addrline { font: 600 calc(var(--fs-xs) * .92) / 1.35 'Consolas', 'SFMono-Regular', monospace; color: #9fd6ff; word-break: break-all; background: rgba(127, 212, 255, .08); border-radius: calc(var(--u) * .5); padding: calc(var(--u) * .55) calc(var(--u) * .8); }
+.iw-pad__apk { margin-top: calc(var(--u) * 1.6); }
 .iw-pad__status { font: 800 var(--fs-xs) / 1 'Rubik', sans-serif; letter-spacing: .14em; color: #ffb454; margin-bottom: calc(var(--u) * 1); }
 .iw-pad__status.is-ok { color: #5ef29a; }
 .iw-pad__slots { display: flex; flex-direction: column; gap: calc(var(--u) * .8); }

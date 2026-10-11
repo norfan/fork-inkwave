@@ -41,6 +41,11 @@ const CSS = `
 .iw-4p .iw4p-hint{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);font:700 13px/1.4 "Segoe UI",system-ui,sans-serif;color:rgba(255,255,255,.85);text-shadow:0 1px 3px rgba(0,0,0,.8);letter-spacing:1px;}
 .iw-4p .iw4p-banner{position:absolute;top:14%;left:50%;transform:translateX(-50%);font:900 clamp(26px,5vw,54px)/1.2 "Segoe UI",system-ui,sans-serif;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.85);opacity:0;transition:opacity .25s;white-space:nowrap;}
 .iw-4p .iw4p-count{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);font:900 clamp(60px,16vw,180px)/1 "Segoe UI",system-ui,sans-serif;color:#fff;text-shadow:0 4px 18px rgba(0,0,0,.9);opacity:0;transition:opacity .3s;}
+.iw-4p .iw4p-topbar{position:absolute;top:8px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;z-index:5;pointer-events:none;}
+.iw-4p .iw4p-topbar>span{font:800 14px/1 "Segoe UI",system-ui,sans-serif;padding:4px 10px;border-radius:13px;background:rgba(0,0,0,.42);text-shadow:0 1px 3px rgba(0,0,0,.7);letter-spacing:.5px;}
+.iw-4p .iw4p-score--a{color:#ff8a14;}
+.iw-4p .iw4p-score--b{color:#7fd4ff;}
+.iw-4p .iw4p-clock{color:#fff;min-width:56px;text-align:center;font-variant-numeric:tabular-nums;}
 `;
 
 const CROSS = `<svg class="iw4p-cross" viewBox="0 0 44 44">
@@ -81,10 +86,14 @@ export class Local4P {
       this.el.appendChild(q);
     }
     const shared = document.createElement('div');
-    shared.innerHTML = `<div class="iw4p-banner"></div><div class="iw4p-count"></div>`;
+    shared.innerHTML = `<div class="iw4p-topbar"><span class="iw4p-score iw4p-score--a"></span><span class="iw4p-clock"></span><span class="iw4p-score iw4p-score--b"></span></div><div class="iw4p-banner"></div><div class="iw4p-count"></div>`;
     this.el.appendChild(shared);
     this.bannerEl = shared.querySelector('.iw4p-banner');
     this.countEl = shared.querySelector('.iw4p-count');
+    this.scoreA = shared.querySelector('.iw4p-score--a');
+    this.scoreB = shared.querySelector('.iw4p-score--b');
+    this.clockEl = shared.querySelector('.iw4p-clock');
+    this._lastClock = null; this._lastScores = null;
     this._bannerT = 0; this._countT = 0;
     root.appendChild(this.el);
   }
@@ -167,6 +176,23 @@ export class Local4P {
     }
     if (this._bannerT > 0) { this._bannerT -= dt; if (this._bannerT <= 0) this.bannerEl.style.opacity = 0; }
     if (this._countT > 0) { this._countT -= dt; if (this._countT <= 0) this.countEl.style.opacity = 0; }
+    // shared clock + per-team turf totals (split-screen: the full-screen HUD is hidden)
+    const m = G.match;
+    if (m && !m.practice) {
+      const t = m.time;
+      if (t != null) {
+        const c = t < 0 ? 'OT' : `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+        if (c !== this._lastClock) { this._lastClock = c; this.clockEl.textContent = c; }
+      }
+      const sum = [0, 0];
+      for (const a of m.actors) if (a.team === 0 || a.team === 1) sum[a.team] += a.stats?.turf || 0;
+      const sa = Math.round(sum[0]), sb = Math.round(sum[1]);
+      if (sa !== this._lastScores?.[0] || sb !== this._lastScores?.[1]) {
+        this._lastScores = [sa, sb];
+        this.scoreA.textContent = String(sa);
+        this.scoreB.textContent = String(sb);
+      }
+    }
   }
 
   dispose() { this.el?.remove(); }

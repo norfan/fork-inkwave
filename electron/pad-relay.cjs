@@ -29,6 +29,7 @@ const MIME = {
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.ico': 'image/x-icon',
+  '.apk': 'application/vnd.android.package-archive',
   '.json': 'application/json',
   '.woff2': 'font/woff2',
 };
@@ -138,8 +139,10 @@ class PadRelay {
   roomCount() { return this.rooms.size; }
 
   _file(urlPath) {
-    // serve /pad (controller page) + its static assets from the project root; everything else 404s
-    let p = urlPath === '/' || urlPath === '/pad' ? 'pad.html' : decodeURIComponent(urlPath).replace(/^\/+/, '');
+    // serve /pad (controller page) + its static assets + the pad APK from the project root; everything else 404s
+    let p = urlPath === '/' || urlPath === '/pad' ? 'pad.html'
+      : urlPath === '/inkwave-pad.apk' ? 'inkwave-pad.apk'
+      : decodeURIComponent(urlPath).replace(/^\/+/, '');
     if (p.includes('..') || p.includes('\0')) return null;
     const file = path.join(this.root, p);
     return file.startsWith(this.root) && fs.existsSync(file) ? file : null;

@@ -1062,6 +1062,7 @@ export class Menus {
   _scr_pad() {
     const game = window.__inkwave;
     const qrUrl = () => 'http://' + (this._padHost() || 'PC-LAN-IP') + ':' + (game?.padPort || 13000) + '/pad?room=' + (game?.padCode || '');
+    const apkUrl = () => 'http://' + (this._padHost() || 'PC-LAN-IP') + ':' + (game?.padPort || 13000) + '/inkwave-pad.apk';
     const el = h('div', { class: 'iw-screen iw-padmenu' },
       h('div', { class: 'iw-ss__bg' }), h('div', { class: 'iw-ss__scrim' }),
       this._header('PHONE PAD', { sub: t('PHONE PAD SUB') }),
@@ -1072,7 +1073,10 @@ export class Menus {
             h('span', { class: 'iw-pad__code' }, game?.padCode || '····'),
             h('button', { class: 'iw-pad__newcode' }, t('NEW CODE'))),
           h('canvas', { class: 'iw-pad__qr', width: 208, height: 208 }),
-          h('div', { class: 'iw-pad__addr' })),
+          h('div', { class: 'iw-pad__addr' }),
+          h('div', { class: 'iw-pad__apk' },
+            h('span', { class: 'iw-pad__lbl' }, t('DOWNLOAD PAD APP')),
+            h('div', { class: 'iw-pad__addr' }))),
         h('div', { class: 'iw-pad__right' },
           h('span', { class: 'iw-pad__lbl' }, t('PHONES')),
           h('div', { class: 'iw-pad__status' }),
@@ -1081,6 +1085,7 @@ export class Menus {
     const codeEl = el.querySelector('.iw-pad__code');
     const qrEl = el.querySelector('.iw-pad__qr');
     const addrEl = el.querySelector('.iw-pad__addr');
+    const apkEl = el.querySelector('.iw-pad__apk .iw-pad__addr');
     const statusEl = el.querySelector('.iw-pad__status');
     const slotsEl = el.querySelector('.iw-pad__slots');
     const newBtn = el.querySelector('.iw-pad__newcode');
@@ -1093,6 +1098,7 @@ export class Menus {
       codeEl.textContent = game.padCode;
       this._renderPadQr(qrEl, qrUrl());
       this._renderPadAddr(addrEl, game, qrUrl());
+      this._renderPadAddr(apkEl, game, apkUrl(), '/inkwave-pad.apk');
     } });
     const renderDevices = () => {
       if (!game || !document.body.contains(el)) return;      const link = game.padLink;
@@ -1111,6 +1117,7 @@ export class Menus {
     };
     if (game) game._padEnsure();
     this._renderPadAddr(addrEl, game, qrUrl());
+    this._renderPadAddr(apkEl, game, apkUrl(), '/inkwave-pad.apk');
     this._renderPadQr(qrEl, qrUrl());
     renderDevices();
     const iv = setInterval(() => { if (!document.body.contains(el)) { clearInterval(iv); return; } renderDevices(); }, 800);
@@ -1127,11 +1134,11 @@ export class Menus {
     const ip = ips.find((x) => x && (x.ip || typeof x === 'string'))?.ip || (typeof ips[0] === 'string' ? ips[0] : '');
     return ip || '';
   }
-  _renderPadAddr(el, game, url) {
+  _renderPadAddr(el, game, url, suffix = '/pad?room=' + (game?.padCode || '')) {
     el.innerHTML = '';
     const ips = game?.padIps || [];
     const hosts = ips.length ? ips.map((x) => x.ip || x) : [];
-    const addrs = hosts.length ? hosts.map((h) => `http://${h}:${game?.padPort || 13000}/pad?room=${game?.padCode || ''}`) : [url];
+    const addrs = hosts.length ? hosts.map((h) => `http://${h}:${game?.padPort || 13000}${suffix}`) : [url];
     for (const a of addrs) el.appendChild(h('div', { class: 'iw-pad__addrline' }, a));
   }
   async _renderPadQr(el, url) {

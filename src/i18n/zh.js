@@ -132,6 +132,7 @@ export const ZH_PHRASES = {
   'P1: keyboard & mouse · P2–P4: gamepad · Boss Battle is solo': 'P1：键鼠 · P2–P4：手柄 · 首领战为单人',
   'PHONE PAD': '手机手柄',
   'PHONE PAD SUB': '手机当手柄 · 同一 Wi-Fi',
+  'DOWNLOAD PAD APP': '下载手柄 APP（安卓）',
   'ROOM CODE': '房间码',
   'NEW CODE': '换一个',
   'PHONES': '已连接手机',

@@ -1073,7 +1073,7 @@ class Game {
     this.rig.dioFlip = team === 1;
     G.audio?.play('ready');
     setTimeout(() => { if (this.match?.state === 'intro') this.hud?.banner('ready'); }, 1700);
-    setTimeout(() => { if (this.match?.state === 'intro') this.hud?.setVisible(true); }, 3000);
+    setTimeout(() => { if (this.match?.state === 'intro' && !this.local4p) this.hud?.setVisible(true); }, 3000);
     this._playMusic(null);
   }
 
@@ -1145,7 +1145,7 @@ class Game {
     this.rig.yaw = 0; this.rig.pitch = -0.12; this.rig.dioFlip = false;
     G.audio?.play('ready');
     setTimeout(() => { if (this.match === m && m.state === 'intro') this.hud?.banner('ready'); }, 5300);
-    setTimeout(() => { if (this.match === m && m.state === 'intro') this.hud?.setVisible(true); }, 5600);
+    setTimeout(() => { if (this.match === m && m.state === 'intro' && !this.local4p) this.hud?.setVisible(true); }, 5600);
     this._playMusic(null);
   }
   // round over: circle the boss (sinking, or roaring over a squad that ran out of time)
