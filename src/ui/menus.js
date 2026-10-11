@@ -487,17 +487,17 @@ export class Menus {
     if (p.played == null) p.played = p.matches ?? (p.wins + (p.losses || 0));
     return p;
   }
-  _loadout() {
+  _loadout(idx = 0) {
     let l = null;
-    try { l = this.api.getLoadout && this.api.getLoadout(); } catch (e) { l = null; }
+    try { l = this.api.getLoadout && this.api.getLoadout(idx); } catch (e) { l = null; }
     const w = (l && l.weapon) || 'shooter';
     return { weapon: this._weapons()[w] ? w : 'shooter', sub: (l && l.sub) || null, special: (l && l.special) || null };
   }
   _weapons() { return this.api.weapons || WEAPONS; }
   _weaponOrder() { return this.api.weaponOrder || WEAPON_ORDER; }
   _specials() { return this.api.specials || SPECIALS; }
-  _sub() { const id = this._loadout().sub, all = this.api.subs || SUB; return (id && all[id]) || this.api.sub || SUB.bomb; }
-  _special() { const lo = this._loadout(), all = this._specials(); return (lo.special && all[lo.special]) || all[(this._weapons()[lo.weapon] || {}).special] || Object.values(all)[0]; }
+  _sub(idx = 0) { const id = this._loadout(idx).sub, all = this.api.subs || SUB; return (id && all[id]) || this.api.sub || SUB.bomb; }
+  _special(idx = 0) { const lo = this._loadout(idx), all = this._specials(); return (lo.special && all[lo.special]) || all[(this._weapons()[lo.weapon] || {}).special] || Object.values(all)[0]; }
   _maps() { return this.api.maps || MAPS; }
   _diffs() { return this.api.difficulties || DIFFICULTY; }
   _version() { return this.api.version || VERSION; }
@@ -1569,16 +1569,19 @@ export class Menus {
   }
 
   /** The player's look, resolved against the live catalog exactly like the in-match Character does (fields never
-   *  saved derive from the name hash, so the locker shows the same kid you play as). */
-  _style() {
+   *   saved derive from the name hash, so the locker shows the same kid you play as). idx = local player (0 = P1). */
+  _style(idx = 0) {
     const p = this._profile();
-    const raw = p.style && typeof p.style === 'object' ? p.style : (this._styleCache || {});
-    try { return LOOK.resolveStyle({ ...raw }, fnv(p.name || 'Player')); } catch (e) { return { ...raw }; }
+    let raw = null;
+    try { raw = this.api.getProfileStyle && this.api.getProfileStyle(idx); } catch (e) { raw = null; }
+    if (!raw || typeof raw !== 'object') raw = p.style && typeof p.style === 'object' ? p.style : (this._styleCache[idx || 0] || {});
+    const seed = idx ? `Player ${idx + 1}` : (p.name || 'Player');
+    try { return LOOK.resolveStyle({ ...raw }, fnv(seed)); } catch (e) { return { ...raw }; }
   }
-  _saveStyle(style) {
+  _saveStyle(style, idx = 0) {
     const clean = { ...style };
-    this._styleCache = clean;
-    if (this.api.setProfileStyle) { safeCall(() => this.api.setProfileStyle(clean)); return; }
+    this._styleCache[idx || 0] = clean;
+    if (this.api.setProfileStyle) { safeCall(() => this.api.setProfileStyle(clean, idx)); return; }
     // until the engine exposes api.setProfileStyle: the same localStorage record main.js saves the profile to
     const g = G.game;
     if (g && g.profile) { g.profile.style = clean; try { localStorage.setItem('inkwave.profile', JSON.stringify(g.profile)); } catch (e) { /* private mode */ } }
@@ -1632,12 +1635,13 @@ export class Menus {
     return nameRow;
   }
 
-  _scr_locker() {
+  _scr_locker(opts = {}) {
+    const pIdx = opts.player || 0;
     const slots = this._lockerSlots();
     const presets = (Array.isArray(LOOK.PRESETS) ? LOOK.PRESETS : []).filter((p) => p && p.style);
     const resolve = (st) => { try { return LOOK.resolveStyle({ ...st }, 0); } catch (e) { return { ...st }; } };
     const same = (a, b) => { for (const k in a) if (a[k] !== b[k]) return false; for (const k in b) if (a[k] !== b[k]) return false; return true; };
-    let style = this._style();
+    let style = this._style(pIdx);
     const tabs = LOCKER_TABS.map((t) => ({ ...t, sections: t.sections.filter((k) => (k === '_presets' ? presets.length : slots[k] && slots[k].count > 0)) })).filter((t) => t.sections.length);
     let tabIdx = clamp(this._lockerTab || 0, 0, tabs.length - 1);
     const sc = G.game && G.game.showcase;
@@ -1779,7 +1783,7 @@ export class Menus {
       next = resolve(next);
       if (same(next, style)) { this._sfx('ui_click'); if (fromEl) restartAnim(fromEl, 'is-pick'); return false; }
       style = next;
-      this._saveStyle(style);
+      this._saveStyle(style, pIdx);
       if (sc && sc.setStyle) safeCall(() => sc.setStyle(style, cause));
       this._sfx('ui_confirm'); this._sfx('splat_small', 0.06);
       if (fromEl) { restartAnim(fromEl, 'is-pick'); this._burstAt(fromEl, { count: 10, dist: 6, size: 0.9 }); }
@@ -1830,7 +1834,7 @@ export class Menus {
       initial: () => equippedTile(),
       afterMount: () => {
         movePill(true);
-        if (sc && sc.showLocker) safeCall(() => sc.showLocker(style, teamColor(), this._loadout().weapon));
+        if (sc && sc.showLocker) safeCall(() => sc.showLocker(style, teamColor(), this._loadout(pIdx).weapon));
       },
       onFocus: (f) => { if (f._sec) showInfo(f); },
       onNav: (dir) => {
@@ -1858,10 +1862,11 @@ export class Menus {
 
   // ================================================================ SCREEN: loadout
   _scr_loadout(opts = {}) {
+    const pIdx = opts.player || 0;
     const inPractice = !!safeCall(() => this.api.isPractice && this.api.isPractice());
     const Ws = this._weapons();
     const order = this._weaponOrder().filter((id) => Ws[id]);
-    let equipped = this._loadout().weapon;
+    let equipped = this._loadout(pIdx).weapon;
     let shown = equipped;
     const specials = this._specials();
     const classOf = (w) => w.class || KIND_LABEL[w.kind] || (w.kind ? w.kind[0].toUpperCase() + w.kind.slice(1) : '');
@@ -1892,7 +1897,7 @@ export class Menus {
       this._bind(c, { id: 'w-' + id, accept: () => {
         if (equipped === id) { this._sfx('ui_click'); restartAnim(c, 'is-pick'); return; }
         equipped = id;
-        safeCall(() => this.api.setLoadout && this.api.setLoadout({ weapon: id }));
+        safeCall(() => this.api.setLoadout && this.api.setLoadout({ weapon: id }, pIdx));
         this._sfx('ui_confirm'); this._sfx('splat_small');
         cards.forEach((x) => x.classList.toggle('is-equipped', x === c));
         restartAnim(c, 'is-pick');
@@ -1928,8 +1933,8 @@ export class Menus {
       subBlurb.textContent = `${t(sb.blurb || '')} ${t('Uses {n}% of your ink.', { n: Math.round(sb.inkCost) })}`;
     };
     const cycleSub = (d) => {
-      const i = subOrder.indexOf(this._sub().id);
-      safeCall(() => this.api.setLoadout && this.api.setLoadout({ sub: subOrder[(i + d + subOrder.length) % subOrder.length] }));
+      const i = subOrder.indexOf(this._sub(pIdx).id);
+      safeCall(() => this.api.setLoadout && this.api.setLoadout({ sub: subOrder[(i + d + subOrder.length) % subOrder.length] }, pIdx));
       this._sfx('ui_toggle');
       renderSub();
       restartAnim(subChip, 'is-swap');
@@ -1947,8 +1952,8 @@ export class Menus {
       spBlurb.textContent = t(sp.blurb || '');
     };
     const cycleSp = (d) => {
-      const i = spOrder.indexOf(this._special().id);
-      safeCall(() => this.api.setLoadout && this.api.setLoadout({ special: spOrder[(i + d + spOrder.length) % spOrder.length] }));
+      const i = spOrder.indexOf(this._special(pIdx).id);
+      safeCall(() => this.api.setLoadout && this.api.setLoadout({ special: spOrder[(i + d + spOrder.length) % spOrder.length] }, pIdx));
       this._sfx('ui_toggle');
       renderSp();
       restartAnim(spChip, 'is-swap');
@@ -2016,17 +2021,17 @@ export class Menus {
     // ---- your squidkid (→ locker)
     const lookAv = h('span', { class: 'iw-lchip__av' }, h('span', { class: 'iw-lchip__blob', html: splatSVG({ seed: 17, cls: 'iw-fa', r: 62, arms: 8, drops: 0 }) }), h('span', { class: 'iw-lchip__squid', html: SQUID }));
     const lookChip = inPractice ? null : h('button', { class: 'iw-wchip iw-lchip iw-lchip--sm iw-in iw-in--down' }, lookAv,
-      h('span', { class: 'iw-wchip__text' }, h('small', null, 'SQUIDKID'), h('b', null, prof.name)),
+      h('span', { class: 'iw-wchip__text' }, h('small', null, pIdx ? `PLAYER ${pIdx + 1}` : 'SQUIDKID'), h('b', null, pIdx ? `Player ${pIdx + 1}` : prof.name)),
       h('span', { class: 'iw-wchip__edit' }, h('i', { html: GLYPHS.hanger }), 'LOCKER'));
     if (lookChip) {
       this._fx(lookChip);
-      this._bind(lookChip, { id: 'look', accept: () => { this._sfx('ui_click'); this._go('locker'); } });
+      this._bind(lookChip, { id: 'look', accept: () => { this._sfx('ui_click'); this._go('locker', { player: pIdx }); } });
       this._portraitInto(lookAv, { kind: 'head', size: 128 });
     }
     const grid = h('div', { class: 'iw-wgrid' + (compact ? ' is-compact' : ''), style: { '--cols': cols } }, cards);
     const el = h('div', { class: 'iw-screen iw-loadout' },
       h('div', { class: 'iw-scrim-left' }),
-      this._header('LOADOUT', { sub: inPractice ? 'Swap weapons and subs mid-practice — changes apply straight away' : 'Pick your weapon, sub and special — your squidkid shows it off on the right' }),
+      this._header('LOADOUT', { sub: (pIdx ? `Player ${pIdx + 1}` : 'You') + (inPractice ? ' — swap weapons and subs mid-practice, changes apply straight away' : ' — pick your weapon, sub and special; your squidkid shows it off on the right') }),
       practiceBtn,
       h('div', { class: 'iw-loadout__body' },
         h('div', { class: 'iw-seclabel iw-in' }, h('i', { html: WEAPON_ICONS.shooter }), 'WEAPON', h('span', { class: 'iw-seclabel__count' }, `${order.indexOf(equipped) + 1} / ${n}`)),
@@ -3928,8 +3933,14 @@ export class Menus {
     const zoneMode = snap.mode === 'zones' && !!snap.zones;
     // online the match keeps running underneath this menu, and quitting leaves the room
     const online = !!(G.netm || (G.net && G.net.state === 'match'));
+    // split-screen: each local player can open their own loadout/locker from the pause menu
+    const localN = safeCall(() => this.api.localCount && this.api.localCount()) || 1;
     const items = [
       { id: 'resume', label: online ? 'BACK TO THE MATCH' : 'RESUME', icon: GLYPHS.play, cls: 'iw-btn--menu iw-btn--primary', accept: () => this._resume(), sound: null },
+      ...(!online && localN > 1 ? Array.from({ length: localN - 1 }, (_, i) => ({
+        id: 'ploadout' + (i + 1), label: `PLAYER ${i + 2} · LOADOUT`, icon: GLYPHS.users, cls: 'iw-btn--menu',
+        accept: () => this._go('loadout', { player: i + 1 }), sound: 'ui_click',
+      })) : []),
       { id: 'settings', label: 'SETTINGS', icon: GLYPHS.gear, cls: 'iw-btn--menu', accept: () => this._go('settings') },
       { id: 'howto', label: 'HOW TO PLAY', icon: GLYPHS.question, cls: 'iw-btn--menu', accept: () => this._go('howto') },
       { id: 'quit', label: online ? 'LEAVE ROOM' : 'QUIT MATCH', icon: online ? GLYPHS.exit : GLYPHS.close, cls: 'iw-btn--menu iw-btn--danger', accept: () => this._openModal({
@@ -3947,7 +3958,7 @@ export class Menus {
       }) },
     ];
     const tilts = [-1.8, 1.2, -1, 1.4];
-    const btns = items.map((it, i) => { const b = this._btn({ ...it, tilt: tilts[i] }); b.classList.add('iw-in', 'iw-in--left'); return b; });
+    const btns = items.map((it, i) => { const b = this._btn({ ...it, tilt: tilts[i % tilts.length] }); b.classList.add('iw-in', 'iw-in--left'); return b; });
 
     // ---- live match panel
     const selfP = snap.players.find((p) => p.isSelf) || snap.players[0] || { team: 0, name: 'You' };

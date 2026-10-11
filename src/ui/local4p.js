@@ -46,6 +46,7 @@ const CSS = `
 .iw-4p .iw4p-score--a{color:#ff8a14;}
 .iw-4p .iw4p-score--b{color:#7fd4ff;}
 .iw-4p .iw4p-clock{color:#fff;min-width:56px;text-align:center;font-variant-numeric:tabular-nums;}
+.iw-4p.is-menued .iw4p-topbar,.iw-4p.is-menued .iw4p-banner,.iw-4p.is-menued .iw4p-count{opacity:0;}
 `;
 
 const CROSS = `<svg class="iw4p-cross" viewBox="0 0 44 44">
@@ -177,6 +178,8 @@ export class Local4P {
     if (this._bannerT > 0) { this._bannerT -= dt; if (this._bannerT <= 0) this.bannerEl.style.opacity = 0; }
     if (this._countT > 0) { this._countT -= dt; if (this._countT <= 0) this.countEl.style.opacity = 0; }
     // shared clock + per-team turf totals (split-screen: the full-screen HUD is hidden)
+    const menuUp = !!G.menus?.current;
+    this.el.classList.toggle('is-menued', menuUp);
     const m = G.match;
     if (m && !m.practice) {
       const t = m.time;

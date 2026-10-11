@@ -47,7 +47,7 @@
 .iw-ui { z-index: 20; pointer-events: none; }
 .iw-ui.is-active { pointer-events: auto; }
 .iw-ui__layer { position: absolute; inset: 0; }
-.iw-screen { position: absolute; inset: 0; overflow: hidden; }
+.iw-screen { position: absolute; inset: 0; overflow: hidden; z-index: 100; }
 .iw-hud { z-index: 10; pointer-events: none; transition: opacity .35s var(--out), visibility 0s linear 0s; }
 .iw-hud.is-hidden { opacity: 0; visibility: hidden; transition: opacity .3s, visibility 0s linear .3s; }
 .iw-hud-over { z-index: 30; pointer-events: none; }

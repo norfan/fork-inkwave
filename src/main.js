@@ -69,6 +69,8 @@ class Game {
     // v1.1: fov became horizontal — migrate old vertical values once
     if (this.settings.fovMode !== 'h') { this.settings.fov = DEFAULT_SETTINGS.fov; this.settings.fovMode = 'h'; saveJSON('inkwave.settings', this.settings); }
     this.profile = loadJSON('inkwave.profile', DEFAULT_PROFILE);
+    // split-screen: an optional per-player kit (P2–P4) alongside the P1 profile; null fields = random/default
+    this.localProfiles = loadJSON('inkwave.localProfiles', null);
     if (WEAPON_SUCCESSOR[this.profile.weapon]) this.profile.weapon = WEAPON_SUCCESSOR[this.profile.weapon];   // retired weapons
     // local split-screen count (?localplayers=2|3|4 — Mario Kart style, 1 = the usual single-player screen)
     this.local4pN = Math.max(1, Math.min(4, +(params.get('localplayers') || 1) || 1));
@@ -370,10 +372,28 @@ class Game {
         return { ...p, played: p.matches, xpToNext: PROGRESSION.xpForLevel(p.level) };
       },
       setProfileName: (n) => { self.profile.name = String(n || 'Player').slice(0, 16); saveJSON('inkwave.profile', self.profile); },
-      // locker look ({ hair, skin, outfit, eyes, hat, brows, … } — indices into character-style.js tables)
-      setProfileStyle: (st) => { self.profile.style = { ...(st || {}) }; saveJSON('inkwave.profile', self.profile); },
-      getLoadout: () => ({ weapon: self.profile.weapon || 'shooter', sub: self._subFor(self.profile.weapon), special: self._specialFor(self.profile.weapon) }),
-      setLoadout: ({ weapon, sub, special }) => {
+      // locker look ({ hair, skin, outfit, eyes, hat, brows, … } — indices into character-style.js tables); idx = local player (0 = P1 profile)
+      setProfileStyle: (st, idx = 0) => {
+        if (idx) { self._localProfile(idx).style = { ...(st || {}) }; self._saveLocalProfiles(); return; }
+        self.profile.style = { ...(st || {}) }; saveJSON('inkwave.profile', self.profile);
+      },
+      getProfileStyle: (idx = 0) => (idx ? (self._localProfile(idx).style || null) : (self.profile.style || null)),
+      getLoadout: (idx = 0) => {
+        if (idx) {
+          const lp = self._localProfile(idx);
+          return { weapon: lp.weapon || 'shooter', sub: lp.sub, special: lp.special };
+        }
+        return { weapon: self.profile.weapon || 'shooter', sub: self._subFor(self.profile.weapon), special: self._specialFor(self.profile.weapon) };
+      },
+      setLoadout: ({ weapon, sub, special }, idx = 0) => {
+        if (idx) {
+          const lp = self._localProfile(idx);
+          if (weapon !== undefined) { if (!WEAPONS[weapon]) return; lp.weapon = weapon; }
+          if (sub !== undefined) lp.sub = SUBS[sub] ? sub : null;
+          if (special !== undefined) lp.special = SPECIALS[special] ? special : null;
+          self._saveLocalProfiles();
+          return;
+        }
         if (weapon !== undefined) {
           if (!WEAPONS[weapon]) return;
           self.profile.weapon = weapon;
@@ -384,6 +404,7 @@ class Game {
         if (self.menus?.current === 'loadout' && weapon !== undefined) self.showcase.showLoadout(weapon, G.teamColors[0], self.profile.style);
         self._applyPracticeLoadout();   // in practice the new kit is in your hands straight away
       },
+      localCount: () => self.local4pN || 1,
       startMatch: (o) => self.startMatch(o),
       // practice: solo on a random stage (no enemies, no clock); the loadout can be changed mid-session
       startPractice: (o) => self.startPractice(o),
@@ -403,6 +424,15 @@ class Game {
     });
     return api;
   }
+
+  // per-local-player kit (P1 = the shared profile; P2–P4 optional overrides, null = random/default)
+  _localProfile(idx) {
+    if (!idx) return this.profile;
+    if (!Array.isArray(this.localProfiles)) this.localProfiles = [];
+    if (!this.localProfiles[idx]) this.localProfiles[idx] = { weapon: null, sub: null, special: null, style: null };
+    return this.localProfiles[idx];
+  }
+  _saveLocalProfiles() { saveJSON('inkwave.localProfiles', this.localProfiles); }
 
   // the loadout's sub: the one picked in the loadout, else the weapon's own default
   _subFor(weapon) { return (SUBS[this.profile.sub] && this.profile.sub) || (WEAPONS[weapon || 'shooter'] || WEAPONS.shooter).sub || 'bomb'; }
@@ -899,11 +929,17 @@ class Game {
     this._setPalette(this._pickPalette());
     const localN = this._localCount(opts, practice, map);
     await this._beginLocal4P(localN);
+    const kits = localN > 1 ? Array.from({ length: localN }, (_, li) => {
+      const lp = this._localProfile(li);
+      return { weapon: lp.weapon || null, sub: lp.sub || null, special: lp.special || null, style: lp.style || null };
+    }) : null;
     const m = (this.match = G.match = new Match({
       attract: false, practice, duration: opts.duration, mode: opts.mode, difficulty: opts.difficulty, weapon: this.profile.weapon || 'shooter', sub: this._subFor(this.profile.weapon), special: this._specialFor(this.profile.weapon),
       playerName: this.profile.name || 'Player', CharacterClass: this.CharacterClass, rig: this.rig, input: this.input,
       rigs: this.localRigs, inputs: this.localInputs, localPlayers: localN,
-      localTeamMode: params.get('localteams') || this.settings.localTeams || 'split',   // PLAY screen: all locals on one team vs bots ('team') or dealt across teams ('split')
+      subs: kits?.map((k) => k.sub) ?? null, specials: kits?.map((k) => k.special) ?? null,
+      styles: kits?.map((k) => k.style) ?? null, weapons: kits?.map((k) => k.weapon) ?? null,
+      localTeamMode: params.get('localteams') || this.settings.localTeams || 'split',   // PLAY screen: all locals on one team vs bots ('split') or dealt across teams ('team')
       autopilot: params.has('autopilot'), style: this.profile.style || null, noBots: mapNoBots(map.id),   // (devstage: a solo walk)
     }));
     m.setup();

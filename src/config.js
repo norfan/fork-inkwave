@@ -19,7 +19,7 @@ export const TEAM_NAMES = ['Alpha', 'Bravo'];
 
 // ---- Player physics / feel (meters, seconds) ----
 export const PLAYER = {
-  hp: 100,
+  hp: 300,
   specialChargeRate: 0.8,   // special meter points per m² of turf inked (0.8 = charges 20% slower); special ink never charges it
   radius: 0.38,
   height: 1.45,          // kid form standing height (feet -> top of head)
@@ -470,8 +470,8 @@ export const SPECIAL_ORDER = ['slam', 'storm', 'barrage', 'barrage_sticky', 'bar
 
 // ---- Match ----
 export const MATCH = {
-  durations: [90, 180],     // seconds
-  defaultDuration: 180,
+  durations: [300, 600, 1200],     // seconds: 5 / 10 / 20 minutes
+  defaultDuration: 600,
   maxDuration: 180,          // hard cap (3 min): the final-minute song expects rounds of at most this length
   finalCountdown: 10,
   teamSize: 4,

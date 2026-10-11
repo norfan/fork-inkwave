@@ -67,18 +67,23 @@ export class Match {
     for (let team = 0; team < (boss || this.practice ? 1 : 2); team++) {
       const weapons = pickTeam(team === 0 && !this.attract ? o.weapon : null);
       if (boss) weapons.push(...pickTeam(null));   // the whole squad on one side: 8 kids, every weapon kind
+      // split-screen: a local player's own loadout weapon takes their seat (null = random pick above)
+      for (const [key, li] of localSlot) {
+        const [t, s] = key.split(':').map(Number);
+        if (t === team && o.weapons?.[li] && s < weapons.length) weapons[s] = o.weapons[li];
+      }
       for (let s = 0; s < (this.practice ? 1 : boss ? BOSS_MODE.squad : MATCH.teamSize); s++) {
         const li = localSlot.get(`${team}:${s}`);
         const isLocal = li !== undefined && !this.attract;
         if (noBots && !isLocal && !(this.attract && o.mannequins)) continue;
-        // subs: yours from the loadout (P1 only); bots carry a random one (about half keep their weapon's default)
-        const sub = isLocal ? (li === 0 ? o.sub : null) : Math.random() < 0.5 ? null : SUB_ORDER[(Math.random() * SUB_ORDER.length) | 0];
-        const special = isLocal ? (li === 0 ? o.special : null) : Math.random() < 0.5 ? null : SPECIAL_ORDER[(Math.random() * SPECIAL_ORDER.length) | 0];
+        // kit: the local player's own loadout (P1 falls back to the profile); bots carry a random one (about half keep their weapon's default)
+        const sub = isLocal ? (o.subs?.[li] ?? (li === 0 ? o.sub : null)) : Math.random() < 0.5 ? null : SUB_ORDER[(Math.random() * SUB_ORDER.length) | 0];
+        const special = isLocal ? (o.specials?.[li] ?? (li === 0 ? o.special : null)) : Math.random() < 0.5 ? null : SPECIAL_ORDER[(Math.random() * SPECIAL_ORDER.length) | 0];
         const a = new Actor({
           team, slot: s, weapon: weapons[s], sub, special, isLocal, isBot: !isLocal,
           name: isLocal ? (li === 0 ? (o.playerName || 'You') : `Player ${li + 1}`) : names[ni++ % names.length],
           // your look from the Locker (an empty style resolves from your name); other locals + bots get random looks
-          style: isLocal ? (li === 0 ? { ...(o.style || {}) } : randomStyle()) : randomStyle(), CharacterClass,
+          style: isLocal ? (o.styles?.[li] ?? (li === 0 ? { ...(o.style || {}) } : randomStyle())) : randomStyle(), CharacterClass,
         });
         if (isLocal && o.style) { /* reserved for future customisation */ }
         G.scene.add(a.character.root);
