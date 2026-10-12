@@ -18,3 +18,4 @@ songs/manifest.json
 
 # android pad build intermediates
 android-pad/build/
+android-pad/*.idsig
