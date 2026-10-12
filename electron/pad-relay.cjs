@@ -70,6 +70,7 @@ class WsSocket {
     this.seq = 0;
     this.gone = false;
     this.at = Date.now();
+    this.lastPong = Date.now();
     this.rate = { t: Date.now(), n: 0, strikes: 0 };
     // keep the TCP pipe alive: phones on Wi-Fi sit behind NAT/gateways that silently reap
     // idle sockets; the 30 Hz input stream usually covers it, but keepalive costs nothing
@@ -86,7 +87,7 @@ class WsSocket {
       if (!f) break;
       if (f.opcode === 0x8) { this._sendFrame(0x8, f.payload); this.sock.end(); return; }
       if (f.opcode === 0x9) { this._sendFrame(0xa, f.payload); continue; }   // ping -> pong
-      if (f.opcode === 0xa) continue;                                        // pong (ours: RTT bookkeeping not needed)
+      if (f.opcode === 0xa) { this.lastPong = Date.now(); continue; }        // pong (ours: heartbeat bookkeeping)
       if (f.opcode !== 0x1 || f.payload.length > MSG_MAX) continue;           // only text, size-capped
       this.relay._message(this, f.payload.toString('utf8'));
     }
@@ -134,6 +135,11 @@ class PadRelay {
     this.rooms = new Map();   // code -> { members: WsSocket[] }
     this.server = http.createServer((req, res) => this._http(req, res));
     this.server.on('upgrade', (req, sock) => this._upgrade(req, sock));
+    // heartbeat sweep: every 10 s ping every socket at the protocol level (browsers answer
+    // pongs automatically). A socket that never pongs back inside 30 s is a dead pipe behind
+    // a NAT/AP — close it so its owner reconnects instead of hanging.
+    this.hbTimer = setInterval(() => this._heartbeat(), 10000);
+    if (this.hbTimer.unref) this.hbTimer.unref();
   }
 
   start() {
@@ -145,9 +151,20 @@ class PadRelay {
       });
     });
   }
-  stop() { for (const r of this.rooms.values()) for (const m of r.members) m.close(); this.server.close(); }
+  stop() { if (this.hbTimer) clearInterval(this.hbTimer); for (const r of this.rooms.values()) for (const m of r.members) m.close(); this.server.close(); }
   get ips() { return lanIPs(); }
   roomCount() { return this.rooms.size; }
+
+  _heartbeat() {
+    const now = Date.now();
+    for (const room of this.rooms.values()) {
+      for (const m of [...room.members]) {
+        if (m.gone) continue;
+        try { m._sendFrame(0x9, Buffer.from([0])); } catch { /* closing */ }
+        if (now - (m.lastPong || m.at) > 30000) { m.close(); this._gone(m); }
+      }
+    }
+  }
 
   _file(urlPath) {
     // serve the game main page at / (browser play), /pad (controller page) + its static

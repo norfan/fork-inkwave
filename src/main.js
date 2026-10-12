@@ -79,6 +79,7 @@ class Game {
     this.padCode = this._newPadCode();
     this.padDevices = new Map();      // device id → { slot, name, id }   (slot 2..4 = P2..P4)
     this.padLast = new Map();         // device id → last input snapshot (reapplied after a match starts)
+    this.padStamp = new Map();        // device id → last padinput timestamp (stale aim → zeroed)
     this.padIps = window.inkwaveNative ? [] : (location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? [] : [{ name: 'LAN', ip: location.hostname }]);
     this._padBoot();
     const app = document.getElementById('app');
@@ -583,6 +584,7 @@ class Game {
       const d = this.padDevices.get(o.device);
       if (!d) return;
       this.padLast.set(o.device, o.d || null);
+      this.padStamp.set(o.device, performance.now());
       const inp = (this.localInputs || [this.input])[d.slot - 1];
       inp?.setVirtual(o.d);
       return;
@@ -1392,6 +1394,18 @@ class Game {
     if (!m || !m.paused) G.fx.update(dt, G.camera);
     if (!m || !m.paused) this.fxHooks?.update?.(dt);
     if (m && !m.paused && !m.attract) this._ageDeathMarks(dt);
+    // stale phone aim: a pad that stops streaming (brief WiFi blip / relay hiccup) must not keep
+    // spinning the camera — zero its aim axes ~250 ms after the last frame so it can't drift
+    if (this.padStamp.size) {
+      const now = performance.now();
+      for (const [dev, t] of this.padStamp) {
+        if (now - t > 250) {
+          const last = this.padLast.get(dev);
+          const seat = this.padDevices.get(dev);
+          if (seat && last) (this.localInputs || [this.input])[seat.slot - 1]?.setVirtual({ ...last, ax: 0, ay: 0 });
+        }
+      }
+    }
     this.screenfx?.update?.(dt, this);
     // the TAB map (also while splatted, planning a Super Jump): lift the splatted desaturation + ink flood off the stage
     // so the ink and the pins read
@@ -1586,13 +1600,14 @@ class Game {
       this.minimap.toCanvas(o.pos.x, o.pos.z, t);
       players.push({ x: t.x / this.minimap.w, y: t.y / this.minimap.h, team: o.team, isSelf: o.isLocal, yaw: -o.yaw + (this.minimap.flip ? Math.PI : 0), alive: o.alive, color: G.teamHex[o.team], tracked });
     }
-    // ally markers
+    // ally markers — every living actor (self, allies and tracked enemies) gets a name tag
+    // with a live HP bar over their head; off-screen ones become edge arrows.
     const markers = [];
     const v = this._mv || (this._mv = new THREE.Vector3());
     const W = innerWidth, H = innerHeight;
     for (const o of m.actors) {
       const tracked = o.team !== a.team && o.alive && o.status.track > 0 && o.status.trackTeam === a.team;
-      if (!tracked && (o.isLocal || o.team !== a.team || !o.alive)) continue;
+      if (!o.alive) continue;
       if (o.character.getHeadPosition && o.form !== 'squid') { o.character.getHeadPosition(v); v.y += 0.45; }
       else { if (o.visualPos) o.visualPos(v); else v.copy(o.pos); v.y += o.form === 'squid' ? 1.0 : 1.9; }
       v.project(cam);
@@ -1607,7 +1622,7 @@ class Game {
         const k = Math.min((W / 2 - 40) / Math.max(1e-3, Math.abs(Math.cos(angle))), (H / 2 - 40) / Math.max(1e-3, Math.abs(Math.sin(angle))));
         x = W / 2 + Math.cos(angle) * k; y = H / 2 + Math.sin(angle) * k;
       }
-      markers.push({ x, y, name: o.name, color: G.teamHex[o.team], onScreen, angle, dist: o.pos.distanceTo(a.pos), tracked });
+      markers.push({ x, y, name: o.name, color: G.teamHex[o.team], onScreen, angle, dist: o.pos.distanceTo(a.pos), tracked, hp: o.hp / PLAYER.hp });
     }
     // contextual prompts (light tutorial)
     this._hintT += dt;

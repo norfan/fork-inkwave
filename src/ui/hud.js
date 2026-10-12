@@ -289,7 +289,7 @@ export class HUD {
     this.mapDim = h('div', { class: 'iw-map-dim' });
     this._mapT = 0; this._mapV = 0;
 
-    this.markers = Array.from({ length: 8 }, () => h('div', { class: 'iw-mk' }, h('span', { class: 'iw-mk__tag' }, h('i', { class: 'iw-mk__w' }), h('b')), h('i', { class: 'iw-mk__arrow' })));
+    this.markers = Array.from({ length: 8 }, () => h('div', { class: 'iw-mk' }, h('span', { class: 'iw-mk__tag' }, h('i', { class: 'iw-mk__w' }), h('b'), h('i', { class: 'iw-mk__hp' }, h('i', { class: 'iw-mk__hpfill' }))), h('i', { class: 'iw-mk__arrow' })));
     this.markerLayer = h('div', { class: 'iw-mks' }, this.markers);
     // "Yeah!" cheers: speech bubbles over whoever signalled
     this.cheerEls = Array.from({ length: 8 }, () => h('div', { class: 'iw-cheer' }, 'YEAH!'));
@@ -557,7 +557,7 @@ export class HUD {
       this.overLayer.appendChild(el);
       const snd = (n) => this._snd(n);
 
-      let t = 0, drum = false, reveal = false, punched = false, finished = false;
+      let ft = 0, drum = false, reveal = false, punched = false, finished = false;
       const t0 = this._fxTime;
       let rollT = 0;
       const R = { a: 0, b: 0 };
@@ -573,18 +573,18 @@ export class HUD {
       setBars(0, 0);
       let revealFrom = { a: 0, b: 0 };
       this._addFx('judge', (dt) => {
-        t = this._fxTime - t0;
-        if (t < 0.8) return true;
+        ft = this._fxTime - t0;
+        if (ft < 0.8) return true;
         if (!drum) { drum = true; snd('judge_drumroll'); el.classList.add('is-racing'); }
-        if (t < 3.45) {
-          const k = easeOutCubic(clamp((t - 0.8) / 1.5));
-          const jitter = t > 2.3 ? Math.sin(t * 38) * 0.006 + Math.sin(t * 23) * 0.004 : 0;
+        if (ft < 3.45) {
+          const k = easeOutCubic(clamp((ft - 0.8) / 1.5));
+          const jitter = ft > 2.3 ? Math.sin(ft * 38) * 0.006 + Math.sin(ft * 23) * 0.004 : 0;
           R.a = 0.43 * k + jitter; R.b = 0.43 * k - jitter;
           setBars(R.a, R.b);
           rollT += dt;
           if (rollT > 0.05) {
             rollT = 0;
-            if (t > 2.3) { numA.textContent = '??.?%'; numB.textContent = '??.?%'; el.classList.add('is-drum'); }
+            if (ft > 2.3) { numA.textContent = '??.?%'; numB.textContent = '??.?%'; el.classList.add('is-drum'); }
             else { numA.textContent = fmt(10 + Math.random() * 60); numB.textContent = fmt(10 + Math.random() * 60); }
           }
           return true;
@@ -595,13 +595,13 @@ export class HUD {
           revealFrom = { a: R.a, b: R.b };
           clash.style.left = `${(share * 100).toFixed(2)}%`;
         }
-        const rk = clamp((t - 3.45) / 0.55);
+        const rk = clamp((ft - 3.45) / 0.55);
         const e = easeOutBack(rk, 2.2);
         setBars(lerp(revealFrom.a, share, e), lerp(revealFrom.b, 1 - share, e));
-        const nk = easeOutCubic(clamp((t - 3.45) / 0.45));
+        const nk = easeOutCubic(clamp((ft - 3.45) / 0.45));
         numA.textContent = fmt(pa * nk); numB.textContent = fmt(pb * nk);
-        if (!punched && t > 3.75) { punched = true; el.classList.add('is-winner', winner === 1 ? 'is-win-b' : winner === 0 ? 'is-win-a' : 'is-tie'); }
-        if (!finished && t > 5.1) {
+        if (!punched && ft > 3.75) { punched = true; el.classList.add('is-winner', winner === 1 ? 'is-win-b' : winner === 0 ? 'is-win-a' : 'is-tie'); }
+        if (!finished && ft > 5.1) {
           finished = true;
           resolve({ winner });
           el.classList.add('is-out');
@@ -1913,7 +1913,7 @@ export class HUD {
       const ac = byName.get(m.name);
       const ready = !!(ac && ac.specialReady && ac.specialReady());
       const far = m.dist != null ? clamp((m.dist - 14) / 20, 0, 1) : 0;
-      const key = `${(+m.x).toFixed(0)}|${(+m.y).toFixed(0)}|${on ? 1 : 0}|${on ? 0 : (+m.angle || 0).toFixed(2)}|${m.name}|${m.color}|${ready ? 1 : 0}|${far.toFixed(1)}|${m.tracked ? 1 : 0}`;
+      const key = `${(+m.x).toFixed(0)}|${(+m.y).toFixed(0)}|${on ? 1 : 0}|${on ? 0 : (+m.angle || 0).toFixed(2)}|${m.name}|${m.color}|${ready ? 1 : 0}|${far.toFixed(1)}|${m.tracked ? 1 : 0}|${(+m.hp || 0).toFixed(2)}`;
       if (L[k] === key) continue;
       const prev = L[k];
       L[k] = key;
@@ -1924,6 +1924,9 @@ export class HUD {
         const w = (ac && ac.weaponId) || m.weapon;
         el.querySelector('.iw-mk__w').innerHTML = w ? weaponIcon(kindOf(w)) : '';
       }
+      const hpf = el.querySelector('.iw-mk__hpfill');
+      if (hpf) hpf.style.width = Math.max(0, Math.min(1, +(m.hp || 0))) * 100 + '%';
+      hpf && el.classList.toggle('is-low', (+m.hp || 0) <= 0.25);
       const col = toHex(m.color, '#ffffff');
       if (el._col !== col) { el._col = col; colorVars(el, 'c', col); }
       if (el._on !== on) { el._on = on; el.classList.toggle('is-off', !on); }

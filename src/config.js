@@ -19,7 +19,7 @@ export const TEAM_NAMES = ['Alpha', 'Bravo'];
 
 // ---- Player physics / feel (meters, seconds) ----
 export const PLAYER = {
-  hp: 300,
+  hp: 600,
   specialChargeRate: 0.8,   // special meter points per m² of turf inked (0.8 = charges 20% slower); special ink never charges it
   radius: 0.38,
   height: 1.45,          // kid form standing height (feet -> top of head)
@@ -472,7 +472,7 @@ export const SPECIAL_ORDER = ['slam', 'storm', 'barrage', 'barrage_sticky', 'bar
 export const MATCH = {
   durations: [300, 600, 1200],     // seconds: 5 / 10 / 20 minutes
   defaultDuration: 600,
-  maxDuration: 180,          // hard cap (3 min): the final-minute song expects rounds of at most this length
+  maxDuration: 1200,          // hard cap (20 min): matches run 5 / 10 / 20 minutes
   finalCountdown: 10,
   teamSize: 4,
   pointsPerM2: 1.0,          // turf points per square metre newly inked
@@ -562,7 +562,7 @@ export const PROGRESSION = {
 export const DEFAULT_SETTINGS = {
   lang: 'en',               // ui language: 'en' | 'zh' (src/i18n/strings.js; mirrored in localStorage 'inkwave.lang')
   sensitivity: 1.0,         // mouse multiplier 0.2..3
-  padSensitivity: 1.0,
+  padSensitivity: 1.3,
   invertY: false,
   fov: 82,                  // horizontal FOV at 16:9, 65..100
   quality: 'high',          // 'low' | 'medium' | 'high' | 'ultra'

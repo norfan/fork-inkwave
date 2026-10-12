@@ -474,6 +474,9 @@
 .iw-mk__w { display: block; width: 1.9em; height: 1.4em; flex: none; }
 .iw-mk__w:empty { display: none; }
 .iw-mk__w svg { width: 100%; height: 100%; color: #fff; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, .3)); }
+.iw-mk__hp { display: block; width: 34px; height: 4px; flex: none; border-radius: 2px; background: rgba(0, 0, 0, .45); overflow: hidden; box-shadow: inset 0 1px 2px rgba(0, 0, 0, .5); }
+.iw-mk__hpfill { display: block; height: 100%; width: 100%; border-radius: 2px; background: linear-gradient(90deg, #7cff8a, #d6ffb0); transition: width .12s linear; }
+.iw-mk.is-low .iw-mk__hpfill { background: linear-gradient(90deg, #ff5252, #ffb14e); }
 .iw-mk__tag::after { content: ''; position: absolute; left: 50%; top: 100%; margin-left: -5px; border: 5px solid transparent; border-top: 6px solid var(--c); filter: drop-shadow(0 2px 0 var(--k)); }
 .iw-mk.is-ready .iw-mk__tag { animation: iw-mk-ready 1s ease-in-out infinite; }
 @keyframes iw-mk-ready { 50% { box-shadow: 0 0 0 2px var(--k), 0 0 0 5px rgba(255, 255, 255, .7), 0 0 14px 4px var(--c); } }

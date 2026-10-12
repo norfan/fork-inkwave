@@ -29,16 +29,19 @@
   .stick .knob { position: absolute; left: 50%; top: 50%; width: 30%; height: 30%; border-radius: 50%; background: #ff8a14; box-shadow: 0 2px 10px rgba(0,0,0,.5); transform: translate(-50%,-50%); pointer-events: none; }
   /* left stick: movement, bottom-left (matches the classic pad layout) */
   #stickL { left: 5vw; bottom: 5vh; }
-  /* right-side aim area: the big empty region on the right of the screen. Swipe it to
-     turn the camera (velocity style — release to stop); sits below the map button and
-     above the action diamond. */
-  #aim { position: absolute; right: 4vw; top: 5vh; bottom: calc(4vh + 250px); left: 48vw; touch-action: none; }
+  /* left-hand fire button: sits just above the left stick so the left thumb can shoot
+     while the right hand aims/swipes. Shares the fire state with the main fire button. */
+  #btnFireL { position: absolute; left: 5vw; bottom: calc(5vh + 234px); width: 22vw; height: 22vw; max-width: 100px; max-height: 100px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255,138,20,.28); border: 2px solid rgba(255,138,20,.65); color: #fff; font: 800 15px/1 'Segoe UI', system-ui, sans-serif; letter-spacing: 1px; touch-action: none; }
+  #btnFireL:active, #btnFireL.on { background: rgba(255,138,20,.75); border-color: #ff8a14; }
+  /* aim surface: the WHOLE screen's empty area (buttons/sticks sit above it; their empty
+     padding passes touches through). Swipe anywhere that isn't a button to turn the camera. */
+  #aim { position: absolute; left: 0; right: 0; top: 5vh; bottom: 4vh; touch-action: none; }
   /* action diamond (layout mirrored from animal-world-cup's pad): special top, sub left,
      jump right, squid bottom, fire centre — hold-to-squid. Sits in the bottom-right
      corner. Fire is the biggest yellow button; the four directional buttons keep a
      clear gap from it (no overlap). */
-  #pad { position: absolute; right: 4vw; bottom: 4vh; width: 54vw; height: 54vw; max-width: 250px; max-height: 250px; }
-  #pad .btn { position: absolute; width: 30%; height: 30%; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255,255,255,.10); border: 2px solid rgba(255,255,255,.38); color: #fff; font: 800 13px/1 'Segoe UI', system-ui, sans-serif; letter-spacing: 1px; touch-action: none; }
+  #pad { position: absolute; right: 4vw; bottom: 4vh; width: 54vw; height: 54vw; max-width: 250px; max-height: 250px; pointer-events: none; }
+  #pad .btn { position: absolute; width: 30%; height: 30%; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255,255,255,.10); border: 2px solid rgba(255,255,255,.38); color: #fff; font: 800 13px/1 'Segoe UI', system-ui, sans-serif; letter-spacing: 1px; touch-action: none; pointer-events: auto; }
   #pad .btn:active, #pad .btn.on { background: rgba(255,138,20,.75); border-color: #ff8a14; }
   #btnSpecial { left: 35%; top: 0; }
   #btnSub { left: 0; top: 35%; }
@@ -50,7 +53,8 @@
   @media (max-width: 760px) {
     #pad { max-width: 212px; max-height: 212px; }
     #stickL { max-width: 150px; max-height: 150px; }
-    #aim { bottom: calc(4vh + 212px); }
+    #btnFireL { max-width: 90px; max-height: 90px; bottom: calc(5vh + 192px); }
+    #aim { bottom: 4vh; }
     #btnMap { max-width: 54px; max-height: 54px; }
   }
   #hud { display: none; }
@@ -71,6 +75,7 @@
   <div id="status"></div>
   <a id="dl-bar" href="/inkwave-pad.apk">⬇ 下载手柄 APP</a>
   <div id="stickL" class="stick"><div class="knob"></div></div>
+  <div id="btnFireL" class="btn">开火</div>
   <div id="aim"></div>
   <div id="pad">
     <div id="btnFire" class="btn">开火</div>
@@ -160,7 +165,7 @@
   // ---- right-side aim surface: swipe = turn the camera (velocity, release to stop) ----
   function makeAim(el) {
     let pid = null, sx = 0, sy = 0;
-    const SENS = 70;      // pixels of swipe for full deflection
+    const SENS = 50;      // pixels of swipe for full deflection (snappier camera)
     const CAP = 120;      // clamp the gesture distance (keeps full swipe snappy)
     el.addEventListener('pointerdown', (e) => {
       e.preventDefault();
@@ -195,6 +200,7 @@
     el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
   }
   makeBtn($('btnFire'), 'fire');
+  makeBtn($('btnFireL'), 'fire');   // left-hand fire: same state as the main fire button
   makeBtn($('btnJump'), 'jump');
   makeBtn($('btnSub'), 'sub');
   makeBtn($('btnSpecial'), 'special');
@@ -202,9 +208,11 @@
   makeBtn($('btnMap'), 'map');
 
   // ---- connection ----
+  let hbT = 0, hbMiss = 0;
   function connect(room) {
     if (ws) { try { ws.close(); } catch {} ws = null; }
     if (retryT) clearTimeout(retryT);
+    if (hbT) { clearInterval(hbT); hbT = 0; }
     curRoom = room;
     const url = 'ws://' + location.host + '/room/' + room + '?name=Phone&v=1';
     status('CONNECTING…', 'bad');
@@ -213,7 +221,7 @@
     ws = w;
     w.onmessage = (ev) => {
       const s = typeof ev.data === 'string' ? ev.data : '';
-      if (s === 'pong') return;
+      if (s === 'pong') { hbMiss = 0; return; }
       if (s.charCodeAt(0) === 109 && s.charCodeAt(1) === 124) {
         let o; try { o = JSON.parse(s.slice(s.indexOf('|', 2) + 1)); } catch { return; }
         return handle(o);
@@ -223,11 +231,24 @@
     };
     w.onclose = () => { if (ws !== w) return; seat = 0; status('LOST — RECONNECTING', 'bad'); schedule(room); };
     w.onerror = () => { try { w.close(); } catch {} };
+    // application-level heartbeat: NAT gateways silently drop idle sockets, so we ping
+    // every 5 s and force a reconnect after two missed pongs instead of hanging dead.
+    hbMiss = 0;
+    hbT = setInterval(() => {
+      if (!w || w.readyState !== 1) return;
+      try { w.send('ping'); } catch { return; }
+      if (++hbMiss >= 2) { hbMiss = 0; try { w.close(); } catch {} }   // dead pipe → onclose → schedule
+    }, 5000);
   }
   function schedule(room) {
     if (retryT) clearTimeout(retryT);
-    retryT = setTimeout(() => connect(room), Math.min(5000, 800 * (++retry)), retry);
+    retryT = setTimeout(() => connect(room), Math.min(2000, 400 * (++retry)), retry);
   }
+  // WiFi drops/returns or the app comes back to the foreground → reconnect immediately
+  window.addEventListener('online', () => { if (!ws || ws.readyState !== 1) { retry = 0; connect(curRoom); } });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && (!ws || ws.readyState !== 1)) { retry = 0; connect(curRoom); }
+  });
   function handle(o) {
     if (o.t === 'err') { errEl.textContent = o.e || 'Connection failed'; return; }
     if (o.t === 'welcome') {

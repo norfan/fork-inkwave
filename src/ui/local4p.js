@@ -22,6 +22,9 @@ const CSS = `
 .iw-4p{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:40;}
 .iw-4p .iw4p-quad{position:absolute;overflow:hidden;}
 .iw-4p .iw4p-name{position:absolute;top:10px;left:14px;font:800 15px/1 "Segoe UI",system-ui,sans-serif;letter-spacing:.5px;text-shadow:0 1px 3px rgba(0,0,0,.7);}
+.iw-4p .iw4p-hp{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:min(46%,200px);height:8px;border-radius:5px;background:rgba(0,0,0,.45);overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.4);z-index:5;}
+.iw-4p .iw4p-hpfill{display:block;height:100%;width:100%;border-radius:5px;background:linear-gradient(90deg,#38e07a,#8ef5ad);transition:width .06s linear;}
+.iw-4p .iw4p-hp.is-low .iw4p-hpfill{background:linear-gradient(90deg,#ff4d6a,#ff7a8e);}
 .iw-4p .iw4p-cross{position:absolute;left:50%;top:50%;width:44px;height:44px;transform:translate(-50%,-50%);opacity:.92;}
 .iw-4p .iw4p-cross .tk{stroke:#fff;stroke-width:2;stroke-linecap:round;opacity:.9;}
 .iw-4p .iw4p-cross.iw-hit .tk{stroke:#ffd54a;stroke-width:3;}
@@ -71,6 +74,7 @@ export class Local4P {
       q.style.cssText = `left:${rc.l}%;top:${rc.t}%;width:${rc.w}%;height:${rc.h}%;`;
       q.innerHTML = `
         <div class="iw4p-name"></div>
+        <div class="iw4p-hp"><i class="iw4p-hpfill"></i></div>
         ${CROSS}<div class="iw4p-dot"></div>
         <div class="iw4p-bars"><div class="iw4p-bar iw4p-inkbar"><div class="iw4p-ink"></div></div><div class="iw4p-bar"><div class="iw4p-special"></div></div></div>
         <div class="iw4p-flash"></div>
@@ -79,7 +83,8 @@ export class Local4P {
         <div class="iw4p-hint">PRESS ANY BUTTON</div>`;
       const $ = (s) => q.querySelector(s);
       this.players.push({
-        root: q, name: $('.iw4p-name'), cross: $('.iw4p-cross'), dot: $('.iw4p-dot'),
+        root: q, name: $('.iw4p-name'), hp: $('.iw4p-hpfill'), hpBox: $('.iw4p-hp'),
+        cross: $('.iw4p-cross'), dot: $('.iw4p-dot'),
         ink: $('.iw4p-ink'), special: $('.iw4p-special'), flash: $('.iw4p-flash'), low: $('.iw4p-low'),
         death: $('.iw4p-death'), deathBy: $('.iw4p-death-by'), deathCount: $('.iw4p-death-count'), hint: $('.iw4p-hint'),
       });
@@ -151,6 +156,9 @@ export class Local4P {
       const a = lp.actor;
       q.name.textContent = a.name;
       q.name.style.color = G.teamHex?.[a.team] || '#fff';
+      const hpf = a.hp == null ? 1 : Math.max(0, Math.min(1, a.hp / PLAYER.hp));
+      q.hp.style.width = `${hpf * 100}%`;
+      q.hpBox.classList.toggle('is-low', hpf <= 0.25);
       q.ink.style.width = `${Math.max(0, Math.min(1, a.ink / PLAYER.inkMax)) * 100}%`;
       const frac = a.specialFrac ? a.specialFrac() : 0;
       q.special.style.width = `${Math.max(0, Math.min(1, frac)) * 100}%`;

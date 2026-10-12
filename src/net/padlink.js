@@ -19,6 +19,8 @@ export class PadLink {
     this.onMessage = null;  // (from, obj) => void   any relayed payload
     this.onClose = null;    // (reason) => void
     this.devices = new Map();   // device id → { slot, name }   (slot 2..4 = P2..P4)
+    this._hbT = 0;
+    this._hbMiss = 0;
   }
 
   /** Resolve with the welcome frame. `addr` = '127.0.0.1:13000' (default PAD_DEFAULT_PORT). */
@@ -36,7 +38,7 @@ export class PadLink {
       const timer = setTimeout(() => { done(reject, netError(ERR.CONNECT, 'Could not connect')); try { ws.close(); } catch { /* ignore */ } }, 8000);
       ws.onmessage = (ev) => {
         const s = typeof ev.data === 'string' ? ev.data : '';
-        if (s === 'pong') return;
+        if (s === 'pong') { this._hbMiss = 0; return; }
         if (s.charCodeAt(0) === 98 && s.charCodeAt(1) === 124) {        // "b|json" broadcast (leave, lock…)
           let o; try { o = JSON.parse(s.slice(2)); } catch { return; }
           this._ingest(null, o);
@@ -54,10 +56,21 @@ export class PadLink {
         this._ingest(null, o);
       };
       ws.onclose = (ev) => {
+        this._hbStop();
         if (!settled) { done(reject, netError(ERR.CONNECT, ev.reason || 'Disconnected')); return; }
         this.onClose?.(ev.reason || 'Disconnected');
       };
       ws.onerror = () => { if (!settled) done(reject, netError(ERR.CONNECT, 'Could not connect')); };
+      // heartbeat: ping every 5 s, force close after two missed pongs so the host's room
+      // membership doesn't silently rot behind a NAT/proxy that reaps idle sockets.
+      this._hbMiss = 0;
+      this._hbT = setInterval(() => {
+        const w = this.ws;
+        if (!w || w.readyState !== 1) return;
+        try { w.send('ping'); } catch { return; }
+        if (++this._hbMiss >= 2) { this._hbMiss = 0; try { w.close(); } catch { /* ignore */ } }
+      }, 5000);
+      if (this._hbT.unref) this._hbT.unref();
     });
   }
 
@@ -88,8 +101,14 @@ export class PadLink {
   }
 
   close() {
+    this._hbStop();
     const ws = this.ws; this.ws = null;
     if (ws) { ws.onclose = null; try { ws.close(1000, 'bye'); } catch { /* ignore */ } }
     this.devices.clear();
+  }
+
+  _hbStop() {
+    if (this._hbT) { clearInterval(this._hbT); this._hbT = 0; }
+    this._hbMiss = 0;
   }
 }
